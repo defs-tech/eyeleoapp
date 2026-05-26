@@ -1,0 +1,45 @@
+name: CI Build EyeLeo
+
+on:
+  workflow_dispatch: # Позволяет запускать сборку вручную кнопкой
+
+jobs:
+  build-windows:
+    runs-on: windows-2019 # Запускаем чистую виртуальную машину Windows
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive # Обновляем git submodules, как требует документация
+
+    - name: Download and Setup wxWidgets
+      run: |
+        # Скачиваем стабильную версию wxWidgets (3.1.3)
+        Invoke-WebRequest -Uri "https://github.com" -OutFile "wxWidgets.zip"
+        Expand-Archive -Path "wxWidgets.zip" -DestinationPath "C:\Dev\wxWidgets-3.1.3"
+        
+    - name: Build wxWidgets
+      run: |
+        # Переходим в директорию сборки wxWidgets и компилируем её в x64 Release
+        cd C:\Dev\wxWidgets-3.1.3\build\msw
+        msbuild.exe wx_vc16.sln /p:Configuration=Release /p:Platform=x64 /m
+
+    - name: Set WXWIN Environment Variable
+      run: |
+        # Прописываем обязательную системную переменную, которую ищет CMake проекта
+        echo "WXWIN=C:\Dev\wxWidgets-3.1.3" >> $env:GITHUB_ENV
+
+    - name: Configure CMake and Build EyeLeo
+      run: |
+        # Генерируем проект Visual Studio через CMake и запускаем компиляцию самого EyeLeo
+        mkdir build
+        cd build
+        cmake -G "Visual Studio 16 2019" -A x64 ..
+        cmake --build . --config Release
+
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: EyeLeo-Windows-x64
+        path: build/Release/ # Сохраняем скомпилированный готовый файл .exe
