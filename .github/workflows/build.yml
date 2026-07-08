@@ -13,11 +13,13 @@ jobs:
         with:
           submodules: recursive 
 
-      - name: Download wxWidgets 3.1.3
+      - name: Download and setup wxWidgets
         run: |
-          curl -L -o wxWidgets.zip https://github.com/wxWidgets/wxWidgets/releases/download/v3.1.3/wxWidgets-3.1.3.zip
-          7z x wxWidgets.zip -oc:\Dev\wxWidgets-3.1.3
-
+          mkdir C:\Dev
+          curl.exe -L -o wxWidgets.zip https://github.com/wxWidgets/wxWidgets/releases/download/v3.1.3/wxWidgets-3.1.3.zip
+          7z x wxWidgets.zip -oC:\Dev\wxWidgets-3.1.3
+        shell: cmd
+        
       - name: Build wxWidgets
         run: |
           # В VS 2022 изменился путь: теперь это Program Files, а не Program Files (x86)
