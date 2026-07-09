@@ -168,20 +168,20 @@ void NotificationWindowLook::Init(int displayInd, unsigned int showCount) {
     wxRect displayRect = osCaps.displays[displayInd].clientArea;
     SetPosition(wxPoint(displayRect.GetRight() - GetSize().GetX(), displayRect.GetBottom() - GetSize().GetY()));
 
-    wxStaticText *txt = new wxStaticText(this, wxID_ANY, L"", wxDefaultPosition, wxSize(100, 25), wxALIGN_CENTER);
+    wxStaticText *txt = new wxStaticText(this, wxID_ANY, L"", wxDefaultPosition, FromDIP(wxSize(100, 25)), wxALIGN_CENTER);
     txt->SetFont(wxFont(12, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false));
     txt->SetForegroundColour(wxColour(255, 255, 255, 255));
-    txt->SetPosition(wxPoint(89, 13));
+    txt->SetPosition(FromDIP(wxPoint(89, 13)));
     txt->SetLabel(langPack->Get(L"notification_wnd_label"));
 
     _txtTime = new wxStaticText(this, wxID_ANY, L"", wxDefaultPosition, wxDefaultSize, wxALIGN_CENTER);
     _txtTime->SetFont(wxFont(14, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false));
     _txtTime->SetForegroundColour(wxColour(255, 200, 70, 255));
-    _txtTime->SetPosition(wxPoint(132, 38));
-    _txtTime->SetSize(wxSize(40, 30));
+    _txtTime->SetPosition(FromDIP(wxPoint(132, 38)));
+    _txtTime->SetSize(FromDIP(wxSize(40, 30)));
 
     wxStaticBitmap *logo = new wxStaticBitmap(this, wxID_ANY, *_bmpNotificationLeopard);
-    logo->SetPosition(wxPoint(12, 16));
+    logo->SetPosition(FromDIP(wxPoint(12, 16)));
 
     //
     txt->Bind(wxEVT_RIGHT_UP, &NotificationWindowLook::OnMouseTap, this);
