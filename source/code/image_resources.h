@@ -10,3 +10,4 @@ extern wxBitmap *_bmpTitle;
 extern wxBitmap *_bmpNotificationLeopard;
 
 void LoadEyeLeoResources();
+void UnloadEyeLeoResources();
