@@ -205,23 +205,23 @@ void MiniPauseControls::Init(int displayInd, unsigned int showCount) {
     wxStaticText *txt = new wxStaticText(this, ID_MINIPAUSE_TEXT, L"", wxDefaultPosition, wxDefaultSize, wxALIGN_CENTER);
     txt->SetFont(wxFont(13, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false));
     txt->SetForegroundColour(wxColour(255, 255, 255, 255));
-    txt->SetPosition(wxPoint(183, 52));
+    txt->SetPosition(FromDIP(wxPoint(183, 52)));
 
     _txtTime = new wxStaticText(this, ID_MINIPAUSE_TIMER, L"", wxDefaultPosition, wxDefaultSize, wxALIGN_CENTER);
     _txtTime->SetFont(wxFont(14, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false));
     _txtTime->SetForegroundColour(wxColour(255, 200, 70, 255));
-    _txtTime->SetPosition(wxPoint(420, 119));
-    _txtTime->SetSize(wxSize(30, 30));
+    _txtTime->SetPosition(FromDIP(wxPoint(420, 119)));
+    _txtTime->SetSize(FromDIP(wxSize(30, 30)));
 
     _excerciseImg = new wxStaticBitmap(this, ID_MINIPAUSE_PORTRAIT, *_bmpWindow);
-    _excerciseImg->SetPosition(wxPoint(18, 38));
+    _excerciseImg->SetPosition(FromDIP(wxPoint(18, 38)));
 
     wxStaticBitmap *title = new wxStaticBitmap(this, ID_MINIPAUSE_LOGO, *_bmpTitle);
-    title->SetPosition(wxPoint(40, 12));
+    title->SetPosition(FromDIP(wxPoint(40, 12)));
 
     if (MiniPauseControls::_exercise == EXERCISE_NONE) {
         for (int tries = 0; tries < 32; ++tries) {
-            MiniPauseControls::_exercise = (EExercise)(rand() % NUM_EXERCISES + 1);
+            MiniPauseControls::_exercise = (EExercise)(rand() % (NUM_EXERCISES - 1) + 1);
             if (getApp()->GetWindowNearbySetting() == false && MiniPauseControls::_exercise == EXERCISE_WINDOW)
                 continue;
             if (MiniPauseControls::_exercise != MiniPauseControls::_lastExercise)
@@ -266,7 +266,7 @@ void MiniPauseControls::Init(int displayInd, unsigned int showCount) {
 
     _excerciseAnim = new ExcerciseAnim(_excerciseImg, _exercise);
 
-    txt->SetSize(wxSize(250, 80));
+    txt->SetSize(FromDIP(wxSize(250, 80)));
 
     ///
     _excerciseImg->Bind(wxEVT_RIGHT_UP, &MiniPauseControls::OnMouseTap, this);
