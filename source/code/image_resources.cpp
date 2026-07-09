@@ -15,3 +15,12 @@ void LoadEyeLeoResources() {
     _bmpWindow = new wxBitmap("Resources/minipause_window.png", wxBITMAP_TYPE_PNG);
     _bmpNotificationLeopard = new wxBitmap("Resources/notification_leopard.png", wxBITMAP_TYPE_PNG);
 }
+
+void UnloadEyeLeoResources() {
+    wxDELETE(_backBitmap);
+    wxDELETE(_backBitmap_long);
+    wxDELETE(_backBitmap_notification);
+    wxDELETE(_bmpTitle);
+    wxDELETE(_bmpWindow);
+    wxDELETE(_bmpNotificationLeopard);
+}
