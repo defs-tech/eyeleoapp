@@ -21,7 +21,7 @@ void TaskManager::AddTask(const wxString &address, int duration_ms) {
     if (address.empty())
         return;
 
-    if (duration_ms < 0)
+    if (duration_ms <= 0)
         return;
 
     wxMilliClock_t current_time = ::wxGetLocalTimeMillis();
@@ -84,9 +84,6 @@ wxThread::ExitCode TaskManager::Entry() {
                     const wxString &address = item.address;
 
                     wxMilliClock_t start_time = item.execute_time - item.duration;
-
-                    /*wxMilliClock_t real_duration = now - start_time;
-                    float f = float(real_duration.ToDouble() / item.duration.ToDouble()); // correction coef*/
 
                     wxCommandEvent *event = new wxCommandEvent(EXECUTE_TASK_EVENT, 0);
 
