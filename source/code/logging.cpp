@@ -1,6 +1,7 @@
 #include "logging.h"
 #include <stdarg.h>
 #include <wx/filefn.h>
+#include <mutex>
 #ifdef WIN32
 #include "shlobj.h"
 #include <direct.h>
@@ -10,6 +11,7 @@
 #endif
 
 static FILE *logFile;
+static std::mutex logMutex;
 
 wxString GetSavePath() {
     static bool isInited = false;
@@ -42,7 +44,7 @@ wxString GetSavePath() {
 namespace logging {
 void Init() {
 #ifdef WIN32
-    _wfopen_s(&logFile, GetSavePath() + L"log.txt", L"r");
+    _wfopen_s(&logFile, (GetSavePath() + L"log.txt").c_str(), L"r");
 #else
     logFile = fopen("log.txt", "w");
 #endif
@@ -62,6 +64,8 @@ void Init() {
 }
 
 void msg(wxString const &msg) {
+    std::lock_guard<std::mutex> lock(logMutex);
+
 #ifdef WIN32
     _wfopen_s(&logFile, (GetSavePath() + L"log.txt").c_str(), L"a");
 #else
@@ -69,9 +73,11 @@ void msg(wxString const &msg) {
 #endif
 
     if (logFile) {
-        fwrite((const char *)msg.mb_str(wxConvUTF8), 1, msg.size(), logFile);
-        fwrite("\n", 1, 1, logFile);
-
+        wxCharBuffer buf = msg.mb_str(wxConvUTF8);
+        if (buf.data()) {
+            fwrite(buf.data(), 1, strlen(buf.data()), logFile);
+            fwrite("\n", 1, 1, logFile);
+        }
         fclose(logFile);
     }
     logFile = 0;
