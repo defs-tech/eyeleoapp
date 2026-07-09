@@ -1,5 +1,7 @@
 #include "activity_monitor.h"
 #include "main.h"
+#include <wx/stdpaths.h>
+#include <wx/filename.h>
 
 HHOOK hMouseHook = 0;
 HHOOK hKeyHook = 0;
@@ -22,11 +24,16 @@ void ActivityMonitor_KeyCallback() {
 }
 
 void PrepareActivityMonitor() {
-    hDll = LoadLibrary(L"activity-monitor.dll");
-    SetupMouseCallback = (SetupCallback)GetProcAddress(hDll, "SetupMouseCallback");
-    SetupKeyCallback = (SetupCallback)GetProcAddress(hDll, "SetupKeyCallback");
-    hookMouseProc = (HOOKPROC)GetProcAddress(hDll, "_MouseProc@12");
-    hookKeyProc = (HOOKPROC)GetProcAddress(hDll, "_KeyProc@12");
+    wxFileName execPath = wxStandardPaths::Get().GetExecutablePath();
+    wxString dllPath = execPath.GetPathWithSep() + L"activity-monitor.dll";
+
+    hDll = LoadLibrary(dllPath.wchar_str());
+    if (hDll) {
+        SetupMouseCallback = (SetupCallback)GetProcAddress(hDll, "SetupMouseCallback");
+        SetupKeyCallback = (SetupCallback)GetProcAddress(hDll, "SetupKeyCallback");
+        hookMouseProc = (HOOKPROC)GetProcAddress(hDll, "_MouseProc@12");
+        hookKeyProc = (HOOKPROC)GetProcAddress(hDll, "_KeyProc@12");
+    }
 }
 
 void InstallActivityMonitor() {
@@ -48,4 +55,9 @@ void UninstallActivityMonitor() {
 
     hKeyHook = 0;
     hMouseHook = 0;
+
+    if (hDll) {
+        FreeLibrary(hDll);
+        hDll = 0;
+    }
 }
