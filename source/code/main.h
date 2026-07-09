@@ -40,7 +40,7 @@ public:
     void CheckSettings();
 
     virtual bool OnInit();
-    bool IsOnlyInstance() const;
+    bool IsOnlyInstance(); // ИСПРАВЛЕНИЕ: убран const
 
     virtual int OnExit();
     virtual void Exit();
@@ -65,7 +65,7 @@ public:
 
     void OnSessionUnlock();
 
-    void StartBigPause(bool demo = false); // demo is true when 'long pause' is called from Settings window for demo purpose
+    void StartBigPause(bool demo = false); 
     void StartMiniPause();
     void StopMiniPause();
     void PostponeBigPause();
@@ -76,100 +76,38 @@ public:
 
     ITask *getWindow(const wxString &address);
 
-    bool GetBigPauseEnabled() const {
-        return _enableBigPause;
-    }
-    int GetBigPauseInterval() const {
-        return _bigPauseInterval;
-    }
-    int GetBigPauseDuration() const {
-        return _bigPauseDuration;
-    }
-    bool GetMiniPauseEnabled() const {
-        return _enableMiniPause;
-    }
-    int GetMiniPauseInterval() const {
-        return _miniPauseInterval;
-    }
-    int GetMiniPauseDuration() const {
-        return _miniPauseDuration;
-    }
-    bool GetWarningEnabled() const {
-        return _enableWarning;
-    }
-    float GetWarningInterval() const {
-        return _warningInterval;
-    }
-    bool GetSoundsEnabled() const {
-        return _enableSounds;
-    }
-    bool GetStrictModeEnabled() const {
-        return _enableStrictMode;
-    }
-    bool GetWindowNearbySetting() const {
-        return _settingWindowNearby;
-    }
-    bool GetInactivityTrackingEnabled() const {
-        return _settingInactivityTracking;
-    }
-    bool GetCanCloseNotificationsSetting() const {
-        return _settingCanCloseNotifications;
-    }
-    bool HasSeenSettings() const {
-        return _seenSettingsWindow;
-    }
-    bool GetShowNotificationsEnabled() const {
-        return _showNotificationsEnabled;
-    }
-    bool GetMiniPauseFullscreenEnabled() const {
-        return _miniPauseFullscreenEnabled;
-    }
+    bool GetBigPauseEnabled() const { return _enableBigPause; }
+    int GetBigPauseInterval() const { return _bigPauseInterval; }
+    int GetBigPauseDuration() const { return _bigPauseDuration; }
+    bool GetMiniPauseEnabled() const { return _enableMiniPause; }
+    int GetMiniPauseInterval() const { return _miniPauseInterval; }
+    int GetMiniPauseDuration() const { return _miniPauseDuration; }
+    bool GetWarningEnabled() const { return _enableWarning; }
+    float GetWarningInterval() const { return _warningInterval; }
+    bool GetSoundsEnabled() const { return _enableSounds; }
+    bool GetStrictModeEnabled() const { return _enableStrictMode; }
+    bool GetWindowNearbySetting() const { return _settingWindowNearby; }
+    bool GetInactivityTrackingEnabled() const { return _settingInactivityTracking; }
+    bool GetCanCloseNotificationsSetting() const { return _settingCanCloseNotifications; }
+    bool HasSeenSettings() const { return _seenSettingsWindow; }
+    bool GetShowNotificationsEnabled() const { return _showNotificationsEnabled; }
+    bool GetMiniPauseFullscreenEnabled() const { return _miniPauseFullscreenEnabled; }
 
-    void SetBigPauseEnabled(bool enabled) {
-        _enableBigPause = enabled;
-    }
-    void SetBigPauseInterval(int interval) {
-        _bigPauseInterval = interval;
-    }
-    void SetBigPauseDuration(int duration) {
-        _bigPauseDuration = duration;
-    }
-    void SetMiniPauseEnabled(bool enabled) {
-        _enableMiniPause = enabled;
-    }
-    void SetMiniPauseInterval(int interval) {
-        _miniPauseInterval = interval;
-    }
-    void SetMiniPauseDuration(int duration) {
-        _miniPauseDuration = duration;
-    }
-    void SetWarningEnabled(bool enabled) {
-        _enableWarning = enabled;
-    }
-    void SetWarningInterval(float interval) {
-        _warningInterval = interval;
-    }
-    void SetSoundsEnabled(bool enabled) {
-        _enableSounds = enabled;
-    }
-    void SetStrictModeEnabled(bool enabled) {
-        _enableStrictMode = enabled;
-    }
-    void SetWindowNearbySetting(bool enabled) {
-        _settingWindowNearby = enabled;
-    }
-    void SetInactivityTrackingEnabled(bool enabled) {
-        _settingInactivityTracking = enabled;
-    }
-    void SetCanCloseNotificationsSetting(bool enabled) {
-        _settingCanCloseNotifications = enabled;
-    }
-    void SetShowNotificationsEnabled(bool enabled) {
-        _showNotificationsEnabled = enabled;
-    }
-    void SetMiniPauseFullscreenEnabled(bool enabled) {
-        _miniPauseFullscreenEnabled = enabled;
-    }
+    void SetBigPauseEnabled(bool enabled) { _enableBigPause = enabled; }
+    void SetBigPauseInterval(int interval) { _bigPauseInterval = interval; }
+    void SetBigPauseDuration(int duration) { _bigPauseDuration = duration; }
+    void SetMiniPauseEnabled(bool enabled) { _enableMiniPause = enabled; }
+    void SetMiniPauseInterval(int interval) { _miniPauseInterval = interval; }
+    void SetMiniPauseDuration(int duration) { _miniPauseDuration = duration; }
+    void SetWarningEnabled(bool enabled) { _enableWarning = enabled; }
+    void SetWarningInterval(float interval) { _warningInterval = interval; }
+    void SetSoundsEnabled(bool enabled) { _enableSounds = enabled; }
+    void SetStrictModeEnabled(bool enabled) { _enableStrictMode = enabled; }
+    void SetWindowNearbySetting(bool enabled) { _settingWindowNearby = enabled; }
+    void SetInactivityTrackingEnabled(bool enabled) { _settingInactivityTracking = enabled; }
+    void SetCanCloseNotificationsSetting(bool enabled) { _settingCanCloseNotifications = enabled; }
+    void SetShowNotificationsEnabled(bool enabled) { _showNotificationsEnabled = enabled; }
+    void SetMiniPauseFullscreenEnabled(bool enabled) { _miniPauseFullscreenEnabled = enabled; }
 
     bool IsFullscreenAppRunning(int *display = 0, HWND *fullscreenWndHandle = 0) const;
 
@@ -182,26 +120,14 @@ public:
     void RepeatState();
     void Stop();
 
-    int GetStateDuration() const {
-        return _lastDuration;
-    }
-    int GetNextState() const {
-        return _nextState;
-    }
+    int GetStateDuration() const { return _lastDuration; }
+    int GetNextState() const { return _nextState; }
 
-    wxString const &getLang() const {
-        return _lang;
-    }
-    wxString const &getVersionString() const {
-        return _version;
-    }
-    wxString const &getWebsiteString() const {
-        return _website;
-    }
+    wxString const &getLang() const { return _lang; }
+    wxString const &getVersionString() const { return _version; }
+    wxString const &getWebsiteString() const { return _website; }
 
-    bool isFinished() const {
-        return _finished;
-    }
+    bool isFinished() const { return _finished; }
 
 private:
     SettingsWindow *_settingsWnd;
@@ -223,9 +149,8 @@ private:
 
     bool _finished;
 
-    // settings
     bool _enableBigPause;
-    int _bigPauseInterval; // in minutes
+    int _bigPauseInterval;
     int _bigPauseDuration;
     bool _enableWarning;
     float _warningInterval;
@@ -242,7 +167,6 @@ private:
     bool _showNotificationsEnabled;
     bool _miniPauseFullscreenEnabled;
 
-    // statistics
     unsigned int _userShortBreakCount;
     unsigned int _userLongBreakCount;
     unsigned int _userEarlySkipCount;
@@ -250,13 +174,12 @@ private:
     unsigned int _userRefuseCount;
     unsigned int _userPostponeCount;
     unsigned int _userAutoBreakCount;
-    long _lastBigPauseTimeLeft; // time left when last shutdown happened
+    long _lastBigPauseTimeLeft; 
     long _lastMiniPauseTimeLeft;
     wxDateTime _lastShutdown;
 
-    // current state
-    long _timeLeftToBigPause;  // ms
-    long _timeLeftToMiniPause; // ms
+    long _timeLeftToBigPause;  
+    long _timeLeftToMiniPause; 
 
     long _relaxingTimeLeft;
     long _fullscreenBlockDuration;
@@ -271,6 +194,8 @@ private:
     std::vector<WaitingFullscreenWindow *> _waitWnds;
     std::vector<BeforePauseWindow *> _beforePauseWnds;
     NotificationWindow *_notificationWnd;
+    
+    void* _hSingleInstanceMutex; // ИСПРАВЛЕНИЕ: Храним Handle для защиты от утечки
 
     void ReadConfig();
 
@@ -310,7 +235,7 @@ public:
     void OnPauseResumeMonitoring(wxCommandEvent &);
     void OnPauseResumeMonitoring2(wxCommandEvent &);
     void OnTakeLongBreakNow(wxCommandEvent &);
-    void OnLeftButtonDown(/*wxTaskBarIconEvent*/ wxMouseEvent &);
+    void OnLeftButtonDown(wxMouseEvent &);
 
 private:
     void RecreatePopupMenu();
@@ -318,7 +243,7 @@ private:
     wxMenu *_menu;
 
     wxIcon *_icon;
-    wxIcon *_iconGray; // for paused mode
+    wxIcon *_iconGray; 
     wxIcon *_iconSettings;
     wxIcon *_iconPause;
     wxIcon *_iconResume;
