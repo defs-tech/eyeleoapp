@@ -23,3 +23,6 @@ cmake --build windowsbuild --config Release
 
 ## Support
 Support the development by becoming a patron at <a href="https://shieldsio-patreon.vercel.app/api/?username=eyeleo&type=patrons"><img src="https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fshieldsio-patreon.vercel.app%2Fapi%3Fusername%3Deyeleo%26type%3Dpatrons&style=for-the-badge" /></a>
+
+
+P.S. Исходники взяты из оригинального источника. Затем код прогнал через нейронку для валидации и коррекции возможных ошибок. Сборка чисто для себя.
