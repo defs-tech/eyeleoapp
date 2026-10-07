@@ -123,6 +123,37 @@
 	<string id="mini_pause_text_7_2" text="Время для короткого перерыва.{n} Потянитесь." />
 	<string id="mini_pause_text_7_3" text="Короткий перерыв!{n}Потянитесь." />
 	
+	<string id="mini_pause_text_8_1" text="Короткий перерыв!{n}Закройте глаза полностью и мягко, десять раз." />
+	<string id="mini_pause_text_8_2" text="Время для перерыва!{n}Закройте глаза полностью и мягко, десять раз." />
+	<string id="mini_pause_text_8_3" text="Перерыв!{n}Закройте глаза полностью и мягко, десять раз." />
+	<string id="mini_pause_text_8_4" text="Время для перерыва.{n}Закройте глаза полностью и мягко, десять раз." />
+	<string id="mini_pause_text_8_5" text="Короткий перерыв!{n}Закройте глаза полностью и мягко, десять раз." />
+	<string id="mini_pause_text_9_1" text="Короткий перерыв!{n}Поднимите и опустите плечи." />
+	<string id="mini_pause_text_9_2" text="Время для перерыва!{n}Поднимите и опустите плечи." />
+	<string id="mini_pause_text_9_3" text="Перерыв!{n}Поднимите и опустите плечи." />
+	<string id="mini_pause_text_9_4" text="Время для перерыва.{n}Поднимите и опустите плечи." />
+	<string id="mini_pause_text_9_5" text="Короткий перерыв!{n}Поднимите и опустите плечи." />
+	<string id="mini_pause_text_10_1" text="Сделайте мини-перерыв{n}и закройте глаза ладонями." />
+	<string id="mini_pause_text_10_2" text="Время для перерыва.{n}Закройте глаза ладонями." />
+	<string id="mini_pause_text_10_3" text="Короткий перерыв!{n}Приложите ладони к глазам." />
+	<string id="mini_pause_text_10_4" text="Время для перерыва!{n}Накройте глаза ладонями." />
+	<string id="mini_pause_text_10_5" text="Короткий перерыв!{n}Дайте глазам отдых в темноте ладоней." />
+	
+	<string id="mini_pause_text_1_4" text="Время для перерыва.{n}Повращайте глазами." />
+	<string id="mini_pause_text_1_5" text="Короткий перерыв!{n}Повращайте глазами." />
+	<string id="mini_pause_text_2_4" text="Время для перерыва.{n}Двигайте глазами вверх и вниз." />
+	<string id="mini_pause_text_2_5" text="Короткий перерыв!{n}Двигайте глазами вверх и вниз." />
+	<string id="mini_pause_text_3_4" text="Время для перерыва.{n}Двигайте глазами влево и вправо." />
+	<string id="mini_pause_text_3_5" text="Короткий перерыв!{n}Двигайте глазами влево и вправо." />
+	<string id="mini_pause_text_4_4" text="Время для перерыва.{n}Закройте глаза на несколько секунд." />
+	<string id="mini_pause_text_4_5" text="Короткий перерыв!{n}Закройте глаза на несколько секунд." />
+	<string id="mini_pause_text_5_4" text="Время для перерыва.{n}Легко поморгайте глазами." />
+	<string id="mini_pause_text_5_5" text="Короткий перерыв!{n}Легко поморгайте глазами." />
+	<string id="mini_pause_text_6_4" text="Время для перерыва.{n}Посмотрите вдаль в окно." />
+	<string id="mini_pause_text_6_5" text="Короткий перерыв!{n}Посмотрите вдаль в окно." />
+	<string id="mini_pause_text_7_4" text="Время для перерыва.{n}и потянитесь." />
+	<string id="mini_pause_text_7_5" text="Короткий перерыв!{n}и потянитесь." />
+	
 	<string id="mini_pause_text_settings" text="А вы знали, что можно менять настройки EyeLeo?" />
 	<string id="mini_pause_text_donate" text="Если вам нравится EyeLeo, поддержите проект пожертвованием на сайте." />
 	<string id="mini_pause_text_tell_friend" text="Если вам нравится EyeLeo, расскажите о нем другу." />

@@ -23,6 +23,7 @@ BigPauseWindow::BigPauseWindow(int displayInd)
     , _preventClosing(true)
     , _breakTimeLeft(0)
     , _breakTimeFull(0)
+    , _personageImg(0)
     , _timeText(0)
     , _restoreFocus(false)
     , _displayInd(displayInd)
@@ -65,8 +66,8 @@ void BigPauseWindow::Init() {
         wxBoxSizer *vsizer = new wxBoxSizer(wxVERTICAL);
         sizer->Add(vsizer, wxSizerFlags().Center());
 
-        wxStaticBitmap *imgCtrl = new wxStaticBitmap(this, wxID_ANY, *g_Personage->_default);
-        vsizer->Add(imgCtrl, wxSizerFlags().Center());
+        _personageImg = new wxStaticBitmap(this, wxID_ANY, *g_Personage->Frame(PF_DEFAULT));
+        vsizer->Add(_personageImg, wxSizerFlags().Center());
         vsizer->AddSpacer(20);
 
         wxStaticText *text = new wxStaticText(this, wxID_ANY, L"", wxDefaultPosition, wxDefaultSize, wxALIGN_CENTRE);

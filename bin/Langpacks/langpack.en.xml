@@ -137,6 +137,22 @@
 	<string id="mini_pause_text_7_4" text="Time for a break!{n}Stretch your body." />
 	<string id="mini_pause_text_7_5" text="Short break!{n}Stretch your body." />
 	
+	<string id="mini_pause_text_8_1" text="Take a short break!{n}Close your eyes fully and gently, ten times." />
+	<string id="mini_pause_text_8_2" text="Time for a short break!{n}Close your eyes fully and gently, ten times." />
+	<string id="mini_pause_text_8_3" text="Break!{n}Close your eyes fully and gently, ten times." />
+	<string id="mini_pause_text_8_4" text="Time for a break!{n}Close your eyes fully and gently, ten times." />
+	<string id="mini_pause_text_8_5" text="Short break!{n}Close your eyes fully and gently, ten times." />
+	<string id="mini_pause_text_9_1" text="Take a short break!{n}Raise and lower your shoulders." />
+	<string id="mini_pause_text_9_2" text="Time for a short break!{n}Raise and lower your shoulders." />
+	<string id="mini_pause_text_9_3" text="Break!{n}Raise and lower your shoulders." />
+	<string id="mini_pause_text_9_4" text="Time for a break!{n}Raise and lower your shoulders." />
+	<string id="mini_pause_text_9_5" text="Short break!{n}Raise and lower your shoulders." />
+	<string id="mini_pause_text_10_1" text="Take a short break!{n}Cover your eyes with your palms." />
+	<string id="mini_pause_text_10_2" text="Take a break!{n}Cover your eyes with your palms." />
+	<string id="mini_pause_text_10_3" text="Time for a short break!{n}Cup your hands over your eyes." />
+	<string id="mini_pause_text_10_4" text="Time for a break!{n}Cover your eyes with your palms." />
+	<string id="mini_pause_text_10_5" text="Short break!{n}Rest your eyes in the dark of your hands." />
+	
 	<string id="mini_pause_text_settings" text="Did you know that you could change EyeLeo preferences?" />
 	<string id="mini_pause_text_donate" text="If you like EyeLeo, consider making a donation on eyeleo.com" />
 	<string id="mini_pause_text_tell_friend" text="If you like EyeLeo, tell your friend about it." />

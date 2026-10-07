@@ -43,6 +43,9 @@ private:
 
     int _displayInd;
 
+    // The portrait. A member rather than a local, because the long break now cycles the
+    // full-figure frames through it.
+    wxStaticBitmap *_personageImg;
     wxStaticText *_timeText;
     wxBoxSizer *_sizer;
 
