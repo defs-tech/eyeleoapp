@@ -581,8 +581,14 @@ wxString EyeApp::TeaReadyCaption() {
 
 wxString EyeApp::TeaSteepCaption() {
     // No tea name here, same as on mac: the cup in the bubble is a different shape for every tea, so
-    // the name would only repeat what the picture already says, and the column is 114pt wide. The
-    // name does appear in the "ready" notice, where the string is short.
+    // the name would only repeat what the picture already says. The name does appear in the "ready"
+    // notice, where the string is short.
+    //
+    // The temperature goes on a second line rather than trailing the sentence. mac gets that for free
+    // because its caption field is tall enough for two lines and the line simply wraps, but whether a
+    // line wraps is a property of the font metrics of the machine it is drawn on, and a wrapped second
+    // line still gets cut off at the bottom of the field. A line break in the string is certain, and the
+    // wording ends up the same as what mac's wrapping produces.
     const TeaSchedule *schedule = _tea.ScheduleFor(_tea.Kind());
     double temperature = schedule ? schedule->temperature : 0.0;
     return wxString::Format(langPack->Get("tea_caption_steep"), _tea.Steep() + 1, _tea.SteepCount(), temperature);

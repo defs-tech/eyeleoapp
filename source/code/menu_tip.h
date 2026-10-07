@@ -20,9 +20,9 @@
 //
 // MenuItemFromPoint takes the menu handle itself rather than a window handle, so no menu window has to
 // be hunted down or subclassed. While the menu is tracked a timer asks Windows which item is under the
-// cursor and points a tooltip at it. Polling is heavier than subclassing the menu window would be, but
-// nothing here is in a position to corrupt the tracking of the menu itself, which is the part worth
-// protecting.
+// cursor, points a tooltip at that item's rectangle, and relays the mouse position to it. Polling is
+// heavier than subclassing the menu window would be, but nothing here is in a position to corrupt the
+// tracking of the menu itself, which is the part worth protecting.
 class MenuItemTip : public wxEvtHandler {
 public:
     MenuItemTip();
@@ -40,6 +40,8 @@ public:
 
 private:
     void OnTick(wxTimerEvent &event);
+    void UpdateTool();
+    void RelayMouse();
     bool HoveredItem(HMENU &menuOut, int &indexOut);
     void AttachTool(HMENU menu, int index, int cmdId, const wxString &text);
     void DetachTool();
@@ -49,6 +51,7 @@ private:
     HMENU _mainMenu;
     HMENU _subMenu;
     HWND _tipWnd;
+    HWND _ownerWnd;
     int _shownCmdId;
     bool _toolAdded;
     bool _logged;

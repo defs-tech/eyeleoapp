@@ -12,7 +12,7 @@
 	<string id="tb_menu_settings" text="EyeLeo Settings" />
 	<string id="tb_menu_take_break_now" text="Take a long a break now" />
 	
-	<string id="tea_caption_steep" text="Steep %1$d of %2$d, %3$.0f°C" />
+	<string id="tea_caption_steep" text="Steep %1$d of %2$d&#10;%3$.0f°C" />
 	<string id="tea_caption_ready" text="%1$s is ready" />
 	<string id="tb_menu_pour" text="Pour" />
 	<string id="tb_menu_pour_fmt" text="Pour (%d s)" />

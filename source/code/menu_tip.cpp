@@ -10,13 +10,14 @@
 static const int kTickMs = 120;
 
 // One tip per menu: a fixed tool id identifies it, and its rectangle is moved to whichever item the mouse
-// is on. That is how the control works now, so there is nothing to update a second tip for.
+// is on.
 static const UINT_PTR kToolId = 1;
 
 MenuItemTip::MenuItemTip()
     : _mainMenu(NULL)
     , _subMenu(NULL)
     , _tipWnd(NULL)
+    , _ownerWnd(NULL)
     , _shownCmdId(0)
     , _toolAdded(false)
     , _logged(false) {
@@ -45,18 +46,24 @@ void MenuItemTip::Start(HMENU mainMenu, HMENU subMenu) {
     // Created here rather than in the constructor because it should exist only while a menu is up, and
     // a tooltip that outlives its menu is the kind of thing that stays on screen looking like a bug.
     //
-    // No TTS_ALWAYSONTOP: it is not in the current SDK any more, along with TTF_CENTERMOUSE, TTM_UPDATETIP
-    // and TTM_HIDETIP. The control was reworked around tools with a rectangle, and a tip is now added
-    // with TTM_ADDTOOL and moves by having its rectangle changed, showing and hiding itself as the mouse
-    // enters and leaves that rectangle. Everything below is written to that API.
-    _tipWnd = ::CreateWindowEx(0, TOOLTIPS_CLASS, L"", 0, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, NULL, NULL,
-                               ::GetModuleHandle(NULL), NULL);
+    // WS_EX_TOPMOST, because TTS_ALWAYSONTOP is not in the current SDK any more, along with
+    // TTF_CENTERMOUSE, TTM_UPDATETIP and TTM_HIDETIP. Without the window being topmost the tip is drawn
+    // underneath the menu it is explaining, which is the same as not being drawn.
+    _tipWnd = ::CreateWindowEx(WS_EX_TOPMOST, TOOLTIPS_CLASS, L"", 0, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, NULL,
+                               NULL, ::GetModuleHandle(NULL), NULL);
     if (!_tipWnd) {
         // No tooltip means no tip, which is a small loss. Failing to get one must not take the menu with
         // it, so this is logged and the tick still runs, just with nothing to point.
         logging::msg(wxString::Format(L"menu tooltip: tooltip window not created, error %d", ::GetLastError()));
         return;
     }
+
+    // The tool needs a window to belong to, and there is none here to belong to. NULL is taken by some
+    // builds of the control and quietly produces a tool that never shows on others, so a message-only
+    // window is created purely to own it: it takes no input, paints nothing and is never on screen. The
+    // predefined STATIC class is used rather than registering one, which would need a window procedure
+    // that exists only to be never called.
+    _ownerWnd = ::CreateWindowEx(0, L"STATIC", L"", 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, ::GetModuleHandle(NULL), NULL);
 
     // The default initial delay is half a second, which is about right for a tip that follows the mouse
     // across a menu rather than for one that belongs to a window the pointer came to rest on.
@@ -77,19 +84,30 @@ void MenuItemTip::Stop() {
         ::DestroyWindow(_tipWnd);
         _tipWnd = NULL;
     }
+    if (_ownerWnd) {
+        ::DestroyWindow(_ownerWnd);
+        _ownerWnd = NULL;
+    }
 }
 
 void MenuItemTip::OnTick(wxTimerEvent &WXUNUSED(event)) {
     if (!_tipWnd || !_mainMenu)
         return;
 
+    UpdateTool();
+
+    // Always, on every path: this is what tells the control where the mouse is, and it needs to hear about
+    // the mouse leaving an item just as much as about it arriving on one.
+    RelayMouse();
+}
+
+void MenuItemTip::UpdateTool() {
     HMENU menu = NULL;
     int index = -1;
 
     if (!HoveredItem(menu, index)) {
         // Off every item worth a tip, which includes being over the items of the other menu entirely.
-        if (_toolAdded)
-            DetachTool();
+        DetachTool();
         return;
     }
 
@@ -97,14 +115,16 @@ void MenuItemTip::OnTick(wxTimerEvent &WXUNUSED(event)) {
     ZeroMemory(&item, sizeof(item));
     item.cbSize = sizeof(item);
     item.fMask = MIIM_ID;
-    if (!::GetMenuItemInfo(menu, (UINT)index, TRUE, &item))
+    if (!::GetMenuItemInfo(menu, (UINT)index, TRUE, &item)) {
+        DetachTool();
         return;
+    }
 
     int cmdId = (int)item.wID;
     std::map<int, wxString>::const_iterator it = _texts.find(cmdId);
     if (it == _texts.end()) {
-        if (_toolAdded)
-            DetachTool();
+        // Over the menu, but not over a tea: a parent item, the separator, or anything else.
+        DetachTool();
         return;
     }
 
@@ -112,6 +132,29 @@ void MenuItemTip::OnTick(wxTimerEvent &WXUNUSED(event)) {
         return;
 
     AttachTool(menu, index, cmdId, it->second);
+}
+
+void MenuItemTip::RelayMouse() {
+    POINT pt;
+    if (!::GetCursorPos(&pt))
+        return;
+
+    // The piece that was missing, and the reason a correctly registered tool still never appeared.
+    //
+    // A tooltip control does not watch the mouse by itself. The window the tooltip belongs to relays
+    // WM_MOUSEMOVE down to it, and the control hit-tests those positions against the rectangles of its
+    // tools to decide whether there is anything to show. There is no such window here, so nothing was
+    // being relayed, and a tool registered perfectly well was never hit-tested and so never displayed.
+    // wxWidgets does the same relay out of wxWindow for its own tooltips.
+    MSG msg;
+    ZeroMemory(&msg, sizeof(msg));
+    msg.message = WM_MOUSEMOVE;
+    msg.hwnd = _tipWnd;
+    // Since Windows 7 the control wants the calling thread's extra message information in wParam when the
+    // relayed message is a mouse move.
+    msg.wParam = (WPARAM)::GetMessageExtraInfo();
+    msg.lParam = MAKELPARAM(pt.x, pt.y);
+    ::SendMessage(_tipWnd, TTM_RELAYEVENT, 0, (LPARAM)&msg);
 }
 
 bool MenuItemTip::HoveredItem(HMENU &menuOut, int &indexOut) {
@@ -148,6 +191,7 @@ void MenuItemTip::AttachTool(HMENU menu, int index, int cmdId, const wxString &t
     RECT itemRect;
     if (!::GetMenuItemRect(NULL, menu, (UINT)index, &itemRect)) {
         // Without a rectangle there is nothing for the control to show itself against.
+        DetachTool();
         return;
     }
 
@@ -162,26 +206,28 @@ void MenuItemTip::AttachTool(HMENU menu, int index, int cmdId, const wxString &t
     // field while the other kept it, and wxChar is wchar_t here.
     tip.lpszText = const_cast<wxChar *>(text.wc_str());
     tip.rect = itemRect;
-    // No window of our own: the tool is identified by the NULL hwnd and the fixed id, which is a pair
-    // like any other, and TTF_CENTERTIP puts the tip on the item's rectangle rather than under the mouse,
-    // which is what stops it landing on top of the text it is explaining.
+    // The window made for this and nothing else, and the fixed id under it. TTF_CENTERTIP puts the tip on
+    // the item's rectangle rather than under the mouse, which is what stops it landing on top of the text
+    // it is explaining.
+    tip.hwnd = _ownerWnd;
     tip.uId = kToolId;
     tip.uFlags = TTF_CENTERTIP;
 
-    if (_toolAdded)
-        ::SendMessage(_tipWnd, TTM_SETTOOLINFO, 0, (LPARAM)&tip);
-    else
-        ::SendMessage(_tipWnd, TTM_ADDTOOL, 0, (LPARAM)&tip);
+    LRESULT added = _toolAdded ? ::SendMessage(_tipWnd, TTM_SETTOOLINFO, 0, (LPARAM)&tip)
+                               : ::SendMessage(_tipWnd, TTM_ADDTOOL, 0, (LPARAM)&tip);
 
     _toolAdded = true;
     _shownCmdId = cmdId;
 
-    // One line, once, so that a log says whether this reached the screen at all. Everything about it is
-    // Win32 behaviour that cannot be checked from the build machine, and the first thing worth knowing is
-    // whether the timer runs inside the menu's modal loop on this Windows at all.
+    // Once, and with the rectangle in it, because the rectangle is the thing most likely to be wrong on
+    // the machine this runs on and it cannot be seen from the build. The log already proved the timer
+    // runs inside the menu's modal loop and that the item under the mouse is found correctly, so what is
+    // left to find out is what the control was given to work with.
     if (!_logged) {
         _logged = true;
-        logging::msg(wxString::Format(L"menu tooltip: first tip shown for command %d: %s", cmdId, text));
+        logging::msg(wxString::Format(
+            L"menu tooltip: command %d, rect %d,%d %dx%d, add=%lld, text: %s", cmdId, itemRect.left, itemRect.top,
+            itemRect.right - itemRect.left, itemRect.bottom - itemRect.top, (long long)added, text));
     }
 }
 
