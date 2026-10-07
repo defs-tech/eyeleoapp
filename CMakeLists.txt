@@ -90,6 +90,8 @@ target_sources(EyeLeo PRIVATE
     ${SOURCE_FILES_FOLDER}/settings_wnd.h
     ${SOURCE_FILES_FOLDER}/task_mgr.cpp
     ${SOURCE_FILES_FOLDER}/task_mgr.h
+    ${SOURCE_FILES_FOLDER}/tea_timer.cpp
+    ${SOURCE_FILES_FOLDER}/tea_timer.h
     ${SOURCE_FILES_FOLDER}/timeloc.cpp
     ${SOURCE_FILES_FOLDER}/timeloc.h
     ${SOURCE_FILES_FOLDER}/waiting_wnd.cpp

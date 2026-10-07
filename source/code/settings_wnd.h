@@ -9,6 +9,7 @@ enum
     ID_TASKBAR_MENU_PAUSE_RESUME_MONITORING,
     ID_TASKBAR_MENU_PAUSE_RESUME_MONITORING_2,
     ID_TASKBAR_MENU_TAKE_LONG_BREAK_NOW,
+    ID_TASKBAR_MENU_POUR,
 
     ID_SETTINGS_CHK_BIG_PAUSES,
     ID_SETTINGS_SEL_BIG_PAUSE_INTERVAL,
@@ -40,6 +41,11 @@ enum
     ID_INFORMATION_BTN_GIVE_FEEDBACK,
     ID_INFORMATION_WRITE_EMAIL,
     ID_INFORMATION_MAKE_DONATION,
+
+    // Base for the six tea items, so a new tea is one more entry and the list can be walked by id.
+    // It has to come last: an explicit value here would renumber everything after it, and the ids
+    // derived from this base would then collide with the settings window's.
+    ID_TASKBAR_MENU_TEA_BASE = 1000
 };
 
 class wxNotebook;

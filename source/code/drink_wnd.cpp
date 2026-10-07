@@ -24,6 +24,7 @@ DrinkReminderWindow::DrinkReminderWindow(int drinkKind, const wxString &caption,
     , _drinkKind(drinkKind)
     , _caption(caption)
     , _msLeft(showForMs)
+    , _shownMsLeft(0)
     , _alpha(0.0f)
     , _preventClosing(true)
     , _captionText(0)
@@ -95,7 +96,22 @@ DrinkReminderWindow::~DrinkReminderWindow() {
     if (DrinkReminderWindow::sInstance == this) {
         DrinkReminderWindow::sInstance = 0;
         FreeDrinkBitmaps();
+        // Without this the app keeps a pointer to a window that no longer exists and reads it the
+        // next time the menu is built.
+        getApp()->OnDrinkReminderWindowClosed(this);
     }
+}
+
+void DrinkReminderWindow::SetTimeLabel(long msLeft) {
+    _shownMsLeft = msLeft;
+    UpdateTimeLabel();
+}
+
+void DrinkReminderWindow::SetAutoDismiss(long ms) {
+    // Only meaningful while it is up: a bubble still fading in would otherwise be handed a deadline it
+    // has not reached yet.
+    if (_state == STATE_ACTIVE)
+        _msLeft = ms;
 }
 
 void DrinkReminderWindow::SetCaption(const wxString &caption) {
@@ -121,6 +137,10 @@ void DrinkReminderWindow::ExecuteTask(float f, long time_went) {
     }
 
     case STATE_ACTIVE: {
+        // The shown countdown runs whether or not the bubble itself is going to close.
+        _shownMsLeft -= time_went;
+        UpdateTimeLabel();
+
         if (_msLeft > 0) {
             _msLeft -= time_went;
             if (_msLeft <= 0) {
@@ -130,7 +150,6 @@ void DrinkReminderWindow::ExecuteTask(float f, long time_went) {
             } else {
                 g_TaskMgr->AddTask(GetName(), 100);
             }
-            UpdateTimeLabel();
         } else {
             // No self-dismiss: stay up until something hides it.
             g_TaskMgr->AddTask(GetName(), 200);
@@ -161,11 +180,13 @@ void DrinkReminderWindow::ExecuteTask(float f, long time_went) {
 void DrinkReminderWindow::UpdateTimeLabel() {
     if (!_timeText)
         return;
-    if (_msLeft <= 0) {
-        _timeText->SetLabel(L"");
+    if (_shownMsLeft <= 0) {
+        // No countdown to show: the tea is ready, or the bubble is just a caption.
+        if (_timeText->GetLabel() != wxEmptyString)
+            _timeText->SetLabel(wxEmptyString);
         return;
     }
-    int secsLeft = (int)((_msLeft - 1) / 1000 + 1);
+    int secsLeft = (int)((_shownMsLeft - 1) / 1000 + 1);
     wxString newStr = wxString::Format(L"%d", secsLeft);
     if (_timeText->GetLabel() != newStr)
         _timeText->SetLabel(newStr);

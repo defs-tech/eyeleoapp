@@ -85,6 +85,7 @@ EyeApp::EyeApp()
     , _lastShutdown()
     , _notificationWnd(nullptr)
     , _waterReminderWnd(nullptr)
+    , _teaReminderWnd(nullptr)
     , _showedLongBreakCountdown(false) {
     g_eyeApp = this;
 }
@@ -207,6 +208,9 @@ bool EyeApp::OnInit() {
 
     PrepareActivityMonitor();
     InstallActivityMonitor();
+
+    // Next to settings.xml, so the schedules can be edited without hunting for them.
+    _tea.LoadConfig(GetSavePath() + L"tea.conf");
 
     g_Personage = new PersonageData(L"leopard");
 
@@ -496,7 +500,127 @@ ITask *EyeApp::getWindow(const wxString &address) {
     return nullptr;
 }
 
+void EyeApp::StartTea(EDrinkKind kind) {
+    logging::msg("StartTea");
+
+    // Not while something else owns the screen, and not on top of another reminder.
+    if (_notificationWnd || _waterReminderWnd || _teaReminderWnd)
+        return;
+    if (_bigPauseWnds.size() || _miniPauseWnds.size())
+        return;
+
+    if (!_tea.Start(kind))
+        return;
+
+    TickTea(0);
+}
+
+void EyeApp::PourNextSteep() {
+    if (!_tea.Pour())
+        return;
+
+    TickTea(0);
+}
+
+void EyeApp::TickTea(long elapsedMs) {
+    if (!_tea.IsBrewing())
+        return;
+
+    if (elapsedMs > 0 && _tea.Advance(elapsedMs)) {
+        if (_tea.IsFinished()) {
+            // The last steep ended on its own, so say the tea is ready and let the bubble take itself
+            // down again a few seconds later.
+            ShowTeaReminder(TeaReadyCaption(), 0, kTeaReadyNoticeSec * 1000);
+            return;
+        }
+
+        // A steep ran out. Showing zero seconds is pointless, so the bubble goes away and the pour
+        // happens from the menu.
+        CloseTeaReminder();
+        return;
+    }
+
+    // A steep is running: keep the countdown to it on screen, in place, since this is called every tick.
+    if (!_tea.IsAwaitingPour())
+        ShowTeaReminder(TeaSteepCaption(), _tea.MsLeft(), 0);
+}
+
+wxString EyeApp::TeaReadyCaption() {
+    // Positional placeholders, because the tea's name comes first in English and the number does not
+    // come first in either language.
+    return wxString::Format(langPack->Get("tea_caption_ready"), TeaName(_tea.Kind()));
+}
+
+wxString EyeApp::TeaSteepCaption() {
+    const TeaSchedule *schedule = _tea.ScheduleFor(_tea.Kind());
+    double temperature = schedule ? schedule->temperature : 0.0;
+    return wxString::Format(langPack->Get("tea_caption_steep"), TeaName(_tea.Kind()), _tea.Steep() + 1,
+                            _tea.SteepCount(), temperature);
+}
+
+wxString EyeApp::TeaName(EDrinkKind kind) {
+    switch (kind) {
+    case DRINK_GREEN:
+        return langPack->Get(L"tea_name_green");
+    case DRINK_WHITE:
+        return langPack->Get(L"tea_name_white");
+    case DRINK_OOLONG:
+        return langPack->Get(L"tea_name_oolong");
+    case DRINK_BLACK:
+        return langPack->Get(L"tea_name_black");
+    case DRINK_PUER:
+        return langPack->Get(L"tea_name_puer");
+    case DRINK_HERBAL:
+        return langPack->Get(L"tea_name_herbal");
+    case DRINK_WATER:
+        return langPack->Get(L"tea_name_water");
+    default:
+        return langPack->Get(L"tea_name_generic");
+    }
+}
+
+void EyeApp::ShowTeaReminder(const wxString &caption, long msLeft, long autoDismissMs) {
+    if (_teaReminderWnd) {
+        // Update in place. Recreating the window on every steep would flash, and while the old one is
+        // still fading out it still owns the singleton, so the new one could not even be created.
+        _teaReminderWnd->SetCaption(caption);
+        _teaReminderWnd->SetTimeLabel(msLeft);
+        if (autoDismissMs > 0)
+            _teaReminderWnd->SetAutoDismiss(autoDismissMs);
+        return;
+    }
+
+    // Something else already owns the single reminder slot, most likely the hydration bubble.
+    if (DrinkReminderWindow::HasInstance())
+        return;
+
+    _teaReminderWnd = new DrinkReminderWindow(_tea.Kind(), caption, 0);
+    _teaReminderWnd->Init(0);
+    _teaReminderWnd->SetTimeLabel(msLeft);
+    if (autoDismissMs > 0)
+        _teaReminderWnd->SetAutoDismiss(autoDismissMs);
+}
+
+void EyeApp::CloseTeaReminder() {
+    if (_teaReminderWnd) {
+        _teaReminderWnd->Hide();
+        _teaReminderWnd = nullptr;
+    }
+}
+
+bool EyeApp::IsTeaMenuEnabled() const {
+    // Nothing may be started while a break overlay owns the screen: the reminder would land underneath
+    // it and nothing would be left of it once the break ended.
+    if (_notificationWnd || _waterReminderWnd || _teaReminderWnd)
+        return false;
+    if (_bigPauseWnds.size() || _miniPauseWnds.size())
+        return false;
+    return true;
+}
+
 void EyeApp::ExecuteTask(float, long time_went) {
+    // Ahead of everything else, so a steep keeps running through a break.
+    TickTea(time_went);
     _currentState = _nextState;
     _nextState = 0;
 
@@ -985,6 +1109,15 @@ void EyeApp::OnNotificationWindowClosed() {
     _notificationWnd = nullptr;
 }
 
+void EyeApp::OnDrinkReminderWindowClosed(DrinkReminderWindow *wnd) {
+    // Whichever of the two reminders it was: a window that closed itself after its countdown must not
+    // leave a pointer to it behind.
+    if (_waterReminderWnd == wnd)
+        _waterReminderWnd = nullptr;
+    if (_teaReminderWnd == wnd)
+        _teaReminderWnd = nullptr;
+}
+
 void EyeApp::OnDebugWindowClosed() {
     _debugWindow = nullptr;
 }
@@ -1440,6 +1573,8 @@ int EyeApp::OnExit() {
     // The reminder is an ordinary frame with a task of its own, so it has to go before the task
     // manager stops; leaving it up would keep it registered and tick against a dead manager.
     CloseWaterReminder();
+    CloseTeaReminder();
+    _tea.Stop();
 
     DeleteLanguagePack();
     delete g_Personage;
@@ -1469,6 +1604,7 @@ void EyeApp::OnEndSession(wxCloseEvent &evt) {
     Stop();
 
     CloseWaterReminder();
+    CloseTeaReminder();
 
     wxApp::OnEndSession(evt);
 
@@ -1516,6 +1652,10 @@ EyeTaskBarIcon::EyeTaskBarIcon()
     Connect(ID_TASKBAR_MENU_PAUSE_RESUME_MONITORING, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(EyeTaskBarIcon::OnPauseResumeMonitoring));
     Connect(ID_TASKBAR_MENU_PAUSE_RESUME_MONITORING_2, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(EyeTaskBarIcon::OnPauseResumeMonitoring2));
     Connect(ID_TASKBAR_MENU_TAKE_LONG_BREAK_NOW, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(EyeTaskBarIcon::OnTakeLongBreakNow));
+    Connect(ID_TASKBAR_MENU_POUR, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(EyeTaskBarIcon::OnPourNextSteep));
+    for (int i = 1; i <= 6; i++)
+        Connect((int)(ID_TASKBAR_MENU_TEA_BASE + i), wxEVT_COMMAND_MENU_SELECTED,
+                wxCommandEventHandler(EyeTaskBarIcon::OnStartTea));
 }
 
 void EyeTaskBarIcon::UpdateTooltip(wxString const &text) {
@@ -1577,7 +1717,46 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
         _menu->Append(item);
     }
 
-    _menu->AppendSeparator();
+    // The tea section. Water is not here: it has its own switch in the settings and counts working
+    // time, while these are steeps the user drives by hand.
+    EyeApp *app = getApp();
+    if (app->IsTeaMenuEnabled()) {
+        wxString pourLabel = langPack->Get("tb_menu_pour");
+        int nextPour = app->GetTea().NextPourSeconds();
+        if (nextPour > 0)
+            pourLabel = wxString::Format(langPack->Get("tb_menu_pour_fmt"), nextPour);
+
+        item = new wxMenuItem(_menu, ID_TASKBAR_MENU_POUR, pourLabel);
+        item->Enable(app->GetTea().IsAwaitingPour());
+        _menu->Append(item);
+
+        wxMenu *teaMenu = new wxMenu();
+        item = _menu->AppendSubMenu(teaMenu, langPack->Get("tb_menu_new_tea"));
+
+        static const EDrinkKind kTeas[] = {DRINK_GREEN, DRINK_WHITE, DRINK_OOLONG,
+                                           DRINK_BLACK, DRINK_PUER,  DRINK_HERBAL};
+        for (int i = 0; i < (int)(sizeof(kTeas) / sizeof(kTeas[0])); i++) {
+            EDrinkKind kind = kTeas[i];
+            const TeaSchedule *schedule = app->GetTea().ScheduleFor(kind);
+            wxString tip;
+            if (schedule) {
+                wxString list;
+                for (int s = 0; s < schedule->count; s++) {
+                    if (s)
+                        list += L", ";
+                    list += wxString::Format(L"%d", schedule->seconds[s]);
+                }
+                tip = wxString::Format(langPack->Get("tea_scheme_fmt"), schedule->count, list);
+            }
+
+            wxMenuItem *teaItem =
+                new wxMenuItem(teaMenu, (int)(ID_TASKBAR_MENU_TEA_BASE + 1 + i),
+                               EyeApp::TeaName(kind), tip);
+            teaItem->Check(app->GetTea().IsBrewing() && app->GetTea().Kind() == kind);
+            teaMenu->Append(teaItem);
+        }
+        _menu->AppendSeparator();
+    }
 
     item = new wxMenuItem(_menu, ID_TASKBAR_MENU_QUIT, langPack->Get("tb_menu_quit"), langPack->Get("tb_menu_quit_tip"));
     _menu->Append(item);
@@ -1595,6 +1774,24 @@ void EyeTaskBarIcon::OnPauseResumeMonitoring2(wxCommandEvent &) {
 
 void EyeTaskBarIcon::OnTakeLongBreakNow(wxCommandEvent &) {
     getApp()->TakeLongBreakNow();
+}
+
+void EyeTaskBarIcon::OnPourNextSteep(wxCommandEvent &) {
+    getApp()->PourNextSteep();
+    RecreatePopupMenu();
+}
+
+void EyeTaskBarIcon::OnStartTea(wxCommandEvent &event) {
+    // One handler for all six: the id is the kind's position in the menu's list, and the list order is
+    // fixed, so there is nothing to look up.
+    static const EDrinkKind kTeas[] = {DRINK_GREEN, DRINK_WHITE, DRINK_OOLONG,
+                                       DRINK_BLACK, DRINK_PUER,  DRINK_HERBAL};
+    int index = event.GetId() - (int)ID_TASKBAR_MENU_TEA_BASE - 1;
+    if (index < 0 || index >= (int)(sizeof(kTeas) / sizeof(kTeas[0])))
+        return;
+
+    getApp()->StartTea(kTeas[index]);
+    RecreatePopupMenu();
 }
 
 void EyeTaskBarIcon::OnQuit(wxCommandEvent &) {

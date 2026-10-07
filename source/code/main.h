@@ -2,6 +2,7 @@
 #define MAIN_H
 
 #include "task_mgr.h"
+#include "tea_timer.h"
 #include "wx/taskbar.h"
 #include "wx/wx.h"
 #include <vector>
@@ -65,6 +66,7 @@ public:
     void OnMiniPauseWindowClosed(MiniPauseWindow *ptr);
     void OnBigPauseWindowClosed(BigPauseWindow *);
     void OnNotificationWindowClosed();
+    void OnDrinkReminderWindowClosed(DrinkReminderWindow *wnd);
     void OnDebugWindowClosed();
     void OnCloseWaitingWnd(WaitingFullscreenWindow *ptr);
     void OnCloseBeforePauseWnd(BeforePauseWindow *ptr);
@@ -76,6 +78,16 @@ public:
     void OnTaskEvent(wxCommandEvent &);
 
     void OnSessionUnlock();
+
+    // Tea. Starting one runs its first steep immediately; pouring advances to the next one.
+    void StartTea(EDrinkKind kind);
+    void PourNextSteep();
+    void TickTea(long elapsedMs);
+    bool IsTeaMenuEnabled() const;
+    const TeaTimer &GetTea() const {
+        return _tea;
+    }
+    static wxString TeaName(EDrinkKind kind);
 
     void StartBigPause(bool demo = false); // demo is true when 'long pause' is called from Settings window for demo purpose
     void StartMiniPause();
@@ -292,6 +304,7 @@ private:
     long _timeLeftToMiniPause; // ms
 
     long _timeToWaterReminder; // ms, working time only
+    TeaTimer _tea;
     long _relaxingTimeLeft;
     long _fullscreenBlockDuration;
     long _timeUntilWaitingWnd;
@@ -306,6 +319,7 @@ private:
     std::vector<BeforePauseWindow *> _beforePauseWnds;
     NotificationWindow *_notificationWnd;
     DrinkReminderWindow *_waterReminderWnd;
+    DrinkReminderWindow *_teaReminderWnd;
 
     void ReadConfig();
 
@@ -313,6 +327,10 @@ private:
     void RestartWaterInterval();
     void ShowWaterReminder();
     void CloseWaterReminder();
+    void ShowTeaReminder(const wxString &caption, long msLeft, long autoDismissMs);
+    void CloseTeaReminder();
+    wxString TeaReadyCaption();
+    wxString TeaSteepCaption();
     void SetBigPauseTime(long ms);
     void SetMiniPauseTime(long ms);
 
@@ -348,6 +366,8 @@ public:
     void OnPauseResumeMonitoring(wxCommandEvent &);
     void OnPauseResumeMonitoring2(wxCommandEvent &);
     void OnTakeLongBreakNow(wxCommandEvent &);
+    void OnPourNextSteep(wxCommandEvent &);
+    void OnStartTea(wxCommandEvent &);
     void OnLeftButtonDown(/*wxTaskBarIconEvent*/ wxMouseEvent &);
 
 private:

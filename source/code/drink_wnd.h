@@ -34,6 +34,13 @@ public:
 
     void Init(int displayInd);
 
+    // The countdown the bubble shows, which is not the same thing as how long it stays up: the tea
+    // timer counts down to the next pour while the bubble itself stays until the pour happens.
+    void SetTimeLabel(long msLeft);
+
+    // Arms or cancels the self-dismiss. <= 0 means stay until something hides it.
+    void SetAutoDismiss(long ms);
+
     // Replaces the caption in place. The tea timer changes its caption on every steep, and rebuilding
     // the window would drop it under whatever the redraw pushed up.
     void SetCaption(const wxString &caption);
@@ -56,7 +63,8 @@ private:
     int _drinkKind;
     wxString _caption;
 
-    long _msLeft;   // until it closes itself, or -1 when it stays until hidden
+    long _msLeft;       // until it closes itself, or <= 0 when it stays until hidden
+    long _shownMsLeft;  // what the countdown on screen is counting
     float _alpha;
     bool _preventClosing;
 
