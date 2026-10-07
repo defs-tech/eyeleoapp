@@ -30,6 +30,10 @@ public:
     // A default-constructed object already holds those built-in schedules.
     void LoadConfig(const wxString &path);
 
+    // Writes the built-in schedules out in the config format, so the file exists to be found and
+    // edited. Called when it is missing, which is the first run.
+    void SaveDefaultConfig(const wxString &path) const;
+
     const TeaSchedule *ScheduleFor(EDrinkKind kind) const;
 
     // Starts brewing. Fails when there is no schedule, which is the case for water: it is a drink, not

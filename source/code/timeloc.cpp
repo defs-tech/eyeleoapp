@@ -4,12 +4,18 @@
 
 wxString getSecondStr(int seconds, wxString const &lang) {
     if (lang == L"ru") {
-        int seconds_mod_10 = seconds % 10;
-        if (seconds_mod_10 >= 2 && seconds_mod_10 <= 4 && seconds / 10 != 1) {
+        // The rule looks at the last two digits, not the last digit and the tens digit separately.
+        // seconds / 10 != 1 is wrong for everything past a hundred: 111 has seconds_mod_10 == 1 and
+        // 111 != 11, so it took the singular, and 112 has seconds_mod_10 == 2 with 112 / 10 == 11, so it
+        // took the 2-to-4 form. Both want the many form, like 11 and 12 do.
+        int last_two = seconds % 100;
+        bool teens = last_two >= 11 && last_two <= 14;
+        int seconds_mod_10 = last_two % 10;
+        if (!teens && seconds_mod_10 >= 2 && seconds_mod_10 <= 4) {
             return wxString::Format(L"%d %s", seconds, langPack->Get("seconds_"));
-        } else if (seconds_mod_10 == 1 && seconds != 11) {
+        } else if (!teens && seconds_mod_10 == 1) {
             return wxString::Format(L"%d %s", seconds, langPack->Get("second"));
-        } else if (seconds_mod_10 == 0 || (seconds >= 5 && seconds <= 19) || (seconds_mod_10 >= 5 && seconds_mod_10 <= 9)) {
+        } else {
             return wxString::Format("%d %s", seconds, langPack->Get("seconds"));
         }
     }

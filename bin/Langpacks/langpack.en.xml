@@ -186,10 +186,10 @@
 	<string id="mini_pause_text_10_5" text="Short break!{n}Rest your eyes in the dark of your hands." />
 	
 	<string id="mini_pause_text_settings" text="Did you know that you could change EyeLeo preferences?" />
-	<string id="mini_pause_text_donate" text="If you like EyeLeo, consider making a donation on eyeleo.com" />
-	<string id="mini_pause_text_tell_friend" text="If you like EyeLeo, tell your friend about it." />
+	<string id="mini_pause_text_donate" text="Blinking keeps the eyes moist." />
+	<string id="mini_pause_text_tell_friend" text="Twenty twenty: every 20 minutes, look 20 feet away." />
 	<string id="mini_pause_text_posture" text="Keep your posture straight." />
-	<string id="mini_pause_text_check_eyeleo" text="Check out a new version of EyeLeo at eyeleo.com" />
+	<string id="mini_pause_text_check_eyeleo" text="Sit a little further from the screen." />
 	
 	<!-- Before Pause window -->
 	<string id="before_pause_text" text="It's time for a long break!{n}Are you ready?" />

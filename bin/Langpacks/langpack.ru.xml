@@ -187,10 +187,10 @@
 	<string id="mini_pause_text_7_5" text="Короткий перерыв!{n}и потянитесь." />
 	
 	<string id="mini_pause_text_settings" text="А вы знали, что можно менять настройки EyeLeo?" />
-	<string id="mini_pause_text_donate" text="Если вам нравится EyeLeo, поддержите проект пожертвованием на сайте." />
-	<string id="mini_pause_text_tell_friend" text="Если вам нравится EyeLeo, расскажите о нем другу." />
+	<string id="mini_pause_text_donate" text="Моргание увлажняет глаза." />
+	<string id="mini_pause_text_tell_friend" text="Правило 20-20-20: каждые 20 минут смотрите вдаль." />
 	<string id="mini_pause_text_posture" text="На забывайте держать осанку." />
-	<string id="mini_pause_text_check_eyeleo" text="Проверьте наличие новой версии EyeLeo на ru.eyeleo.com" />
+	<string id="mini_pause_text_check_eyeleo" text="Отсядьте чуть дальше от экрана." />
 
 	<!-- Before Pause window -->
 	<string id="before_pause_text" text="Пришло время для большого перерыва!{n}Вы готовы?" />

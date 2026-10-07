@@ -3,6 +3,7 @@
 #include "logging.h"
 
 #include <wx/arrstr.h>
+#include <wx/filefn.h>
 #include <wx/ffile.h>
 #include <wx/file.h>
 #include <wx/string.h>
@@ -70,7 +71,8 @@ void TeaTimer::LoadConfig(const wxString &path) {
     ResetToDefaults();
 
     if (!wxFile::Exists(path)) {
-        logging::msg("tea.conf not present, using the built-in schedules");
+        logging::msg("tea.conf not present, using the built-in schedules and writing them out");
+        SaveDefaultConfig(path);
         return;
     }
 
@@ -154,6 +156,54 @@ void TeaTimer::LoadConfig(const wxString &path) {
         logging::msg(wxString::Format(L"tea.conf: schedule for kind %d read with %d steeps", kind,
                                        schedule.count));
     }
+}
+
+void TeaTimer::SaveDefaultConfig(const wxString &path) const {
+    if (!wxFileName::DirExists(wxFileName(path).GetPath()))
+        wxFileName::Mkdir(wxFileName(path).GetPath(), 0700, wxPATH_MKDIR_FULL);
+
+    wxString text;
+    text += wxT("# Steeping schedules, one tea per line:\n");
+    text += wxT("#   name, temperature in C, then the seconds for each steep\n");
+    text += wxT("# Names are accepted in English or Russian, case does not matter.\n");
+    text += wxT("# Water has no schedule: it is a drink, not something you steep.\n");
+    text += wxT("# Change a line and restart EyeLeo; anything unreadable falls back to the values here.\n");
+
+    for (size_t i = 0; i < _schedules.size(); i++) {
+        const TeaSchedule &s = _schedules[i];
+        // The name written back has to be one KindFromName accepts, so the English spelling is used.
+        wxString name;
+        switch (s.kind) {
+        case DRINK_GREEN:
+            name = wxT("green");
+            break;
+        case DRINK_WHITE:
+            name = wxT("white");
+            break;
+        case DRINK_OOLONG:
+            name = wxT("oolong");
+            break;
+        case DRINK_BLACK:
+            name = wxT("black");
+            break;
+        case DRINK_PUER:
+            name = wxT("puer");
+            break;
+        case DRINK_HERBAL:
+            name = wxT("herbal");
+            break;
+        default:
+            continue;
+        }
+
+        text += wxString::Format(wxT("%s, %.0f"), name, s.temperature);
+        for (int k = 0; k < s.count; k++)
+            text += wxString::Format(wxT(", %d"), s.seconds[k]);
+        text += wxT("\n");
+    }
+
+    if (!wxFile::WriteFile(path, text, wxConvUTF8))
+        logging::msg("tea.conf could not be written; the built-in schedules stay in use");
 }
 
 const TeaSchedule *TeaTimer::ScheduleFor(EDrinkKind kind) const {
