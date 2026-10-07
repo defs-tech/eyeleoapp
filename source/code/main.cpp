@@ -1793,14 +1793,13 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
                 tip = wxString::Format(langPack->Get("tea_scheme_fmt"), schedule->count, list);
             }
 
-            // The scheme goes through SetToolTip, not into the constructor. The fourth argument of
-            // wxMenuItem is help, which is the text for a status bar, and a tray icon has no status bar,
-            // so passing the scheme there put it nowhere the user could ever see it.
+            // The scheme goes in as longHelp, the fifth argument, which is what Windows shows as a
+            // tooltip. The fourth argument is help, the text for a status bar, and a tray icon has no
+            // status bar, so putting the scheme there sent it nowhere the user could see. And
+            // SetToolTip does not exist on wxMenuItem in 3.1.3 at all, which is what the compiler said.
             wxMenuItem *teaItem =
-                new wxMenuItem(teaMenu, (int)(ID_TASKBAR_MENU_TEA_BASE + 1 + i),
-                               EyeApp::TeaName(kind));
-            if (!tip.IsEmpty())
-                teaItem->SetToolTip(tip);
+                new wxMenuItem(teaMenu, (int)(ID_TASKBAR_MENU_TEA_BASE + 1 + i), EyeApp::TeaName(kind),
+                               wxEmptyString, tip, wxNullBitmap);
             teaItem->Check(app->GetTea().IsBrewing() && app->GetTea().Kind() == kind);
             teaMenu->Append(teaItem);
         }
