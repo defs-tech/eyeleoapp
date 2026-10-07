@@ -47,9 +47,24 @@ jobs:
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           set WXWIN=C:\Dev\wxWidgets-3.1.3\
-          cmake -B windowsbuild .
-          cmake --build windowsbuild --config Release
+          cmake -B windowsbuild . > build.log 2>&1 && cmake --build windowsbuild --config Release >> build.log 2>&1
+          set RC=%ERRORLEVEL%
+          type build.log
+          echo "### Build output" >> %GITHUB_STEP_SUMMARY%
+          type build.log >> %GITHUB_STEP_SUMMARY%
+          exit /b %RC%
         shell: cmd
+
+      # The compiler's output has to be readable without repository admin rights, and the REST endpoint
+      # for job logs refuses those. An artifact is readable by anyone who can read the repository, so a
+      # failed build is diagnosable from outside instead of only from the Actions page.
+      - name: Upload the build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: warn
 
       - name: Upload the runnable app
         uses: actions/upload-artifact@v4
