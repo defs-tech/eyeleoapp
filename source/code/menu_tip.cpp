@@ -1,3 +1,19 @@
+// The tooltip control's styles, messages and flags, and MenuItemFromPoint, all sit behind version
+// guards in the SDK: commctrl.h hides everything from TTS_ALWAYSONTOP to TTM_HIDETIP behind
+// #if (_WIN32_WINNT >= 0x0501), while TOOLINFO and MENUITEMINFO sit outside it and resolve either way.
+// A wxWidgets header pulls commctrl.h in early, and whether _WIN32_WINNT is set by then depends on
+// which one; where it is not, commctrl.h's own include guard stops it being read again with the macros
+// in place, and the tooltip half of it is simply absent for the rest of this file. Saying it above
+// every include here is the whole fix: nothing is included before it, so whichever header reaches
+// commctrl.h first already sees it. wx has wx/msw/winver.h for this, but it only runs from wrapwin.h,
+// which is later in the chain than the header that got there first.
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0601 // Windows 7
+#endif
+#ifndef WINVER
+#define WINVER 0x0601
+#endif
+
 #include "menu_tip.h"
 
 #include "logging.h"
@@ -134,9 +150,14 @@ void MenuItemTip::Show(int cmdId, const wxString &text) {
     // No hwnd and no window of our own: this tip belongs to no window, it just sits at the mouse, which
     // is what an item of a menu wants. TTF_CENTERMOUSE puts it there without any positioning to do.
     tip.uFlags = TTF_CENTERMOUSE;
-    tip.hInst = ::GetModuleHandle(NULL);
     tip.uId = kToolId;
-    tip.lpszText = (LPCTSTR)text.wc_str();
+    // Left deliberately: the module handle is only read for a caption callback, and the SDK spells that
+    // field hinst in one version of the structure and hInst in another, so the same line cannot be
+    // written for both. wxWidgets leaves it alone for the same reason.
+    //
+    // The text is cast away from const because that version of the structure dropped the const from
+    // this field while the other kept it, and wxChar is wchar_t here.
+    tip.lpszText = const_cast<wxChar *>(text.wc_str());
 
     ::SendMessage(_tipWnd, TTM_SETTOOLINFO, 0, (LPARAM)&tip);
     ::SendMessage(_tipWnd, TTM_UPDATETIP, 0, (LPARAM)&tip);
