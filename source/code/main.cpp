@@ -209,8 +209,13 @@ bool EyeApp::OnInit() {
     PrepareActivityMonitor();
     InstallActivityMonitor();
 
-    // Next to settings.xml, so the schedules can be edited without hunting for them.
-    _tea.LoadConfig(GetSavePath() + L"tea.conf");
+    // The config the user edits lives in their profile, beside settings.xml. The copy the installer put
+    // next to the executable is only a template: on the first run it is copied over, so a fresh install
+    // runs exactly the values that shipped, and the user never has to guess where the file went.
+    // Read from the executable rather than the working directory, unlike the assets, because this one
+    // has to be found even if the app was started by a shortcut with an empty working directory.
+    wxFileName exeDir(wxStandardPaths::Get().GetExecutablePath());
+    _tea.LoadConfig(GetSavePath() + L"tea.conf", exeDir.GetPath() + wxT("\\") + wxT("tea.conf"));
 
     g_Personage = new PersonageData(L"leopard");
 

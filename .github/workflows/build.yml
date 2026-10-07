@@ -130,6 +130,10 @@ jobs:
               '- A hydration reminder, and a tea timer with manual steeps.',
               '- Russian plural forms are fixed past one hundred.',
               '',
+              'Tea schedules live in tea.conf. The copy in the install folder is a template: on the',
+              'first run EyeLeo copies it to %APPDATA%\\EyeLeo\\tea.conf, and that copy is the one it',
+              'reads and the one to edit. Settings sit beside it in the same folder.',
+              '',
               'Attention: the assets are loaded relative to the working directory, so the program must',
               'be started from its own folder.',
             ].join('\n');

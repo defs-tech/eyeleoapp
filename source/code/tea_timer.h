@@ -28,7 +28,12 @@ public:
     // Reads tea.conf if it is there and readable. A missing or malformed file is not an error: the
     // built-in schedules stand, because a typo in a config file should not cost the user their teas.
     // A default-constructed object already holds those built-in schedules.
-    void LoadConfig(const wxString &path);
+    //
+    // templatePath is the copy the installer put next to the executable. When there is no config in the
+    // user's profile yet, that shipped copy is copied over it, so the file the user edits is the one
+    // that was shipped and the shipped values are what a fresh install actually runs on. Without it the
+    // file would appear only after the first launch, and the installed copy would never be read at all.
+    void LoadConfig(const wxString &path, const wxString &templatePath = wxEmptyString);
 
     // Writes the built-in schedules out in the config format, so the file exists to be found and
     // edited. Called when it is missing, which is the first run.

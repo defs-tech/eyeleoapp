@@ -64,7 +64,27 @@ TeaTimer::TeaTimer() {
     ResetToDefaults();
 }
 
-void TeaTimer::LoadConfig(const wxString &path) {
+// Both helpers return false rather than throwing: for seeding a config that is a message, not a
+// condition to recover from, and the caller falls back to the built-in schedules.
+static bool ReadTextFile(const wxString &path, wxString *out) {
+    wxFFile file(path, "rb");
+    if (!file.IsOpened() || !file.ReadAll(out, wxConvUTF8))
+        return false;
+    return true;
+}
+
+static bool CopyTextFile(const wxString &from, const wxString &to) {
+    wxString text;
+    if (!ReadTextFile(from, &text))
+        return false;
+
+    wxFFile out(to, "wb");
+    if (!out.IsOpened() || !out.Write(text))
+        return false;
+    return true;
+}
+
+void TeaTimer::LoadConfig(const wxString &path, const wxString &templatePath) {
     // Back to the shipped schedules first, so a reload after an edit never leaves a half-applied file
     // behind.
     ResetToDefaults();
@@ -72,13 +92,18 @@ void TeaTimer::LoadConfig(const wxString &path) {
     // wxFFile does all of it: opening for reading doubles as the existence test, so wxFile is not
     // needed at all. Read as UTF-8, so a file written on any platform comes in the same way.
     wxString text;
-    wxFFile file(path, "rb");
-    if (!file.IsOpened()) {
-        logging::msg("tea.conf not present, using the built-in schedules and writing them out");
-        SaveDefaultConfig(path);
-        return;
+    if (!ReadTextFile(path, &text)) {
+        // First run on this machine. Prefer the copy the installer shipped over writing the built-ins:
+        // the two should agree, and if they ever do not, the shipped file is the one the user can see.
+        if (!templatePath.IsEmpty() && CopyTextFile(templatePath, path) && ReadTextFile(path, &text)) {
+            logging::msg("tea.conf seeded from the copy shipped with the installer");
+        } else {
+            logging::msg("tea.conf not present, writing out the built-in schedules");
+            SaveDefaultConfig(path);
+            return;
+        }
     }
-    if (!file.ReadAll(&text, wxConvUTF8) || text.IsEmpty()) {
+    if (text.IsEmpty()) {
         logging::msg("tea.conf is empty or not valid UTF-8, using the built-in schedules");
         return;
     }

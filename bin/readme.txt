@@ -1,5 +1,5 @@
 =========================================================
-                     EyeLeo v1.3.6
+                     EyeLeo v1.4.0
            Copyright (c) 2010-2020 EyeLeo.com
 =========================================================
 
@@ -18,6 +18,29 @@ Support the author at patreon.com/eyeleo
 
 * Version history *
 ===================
+Version 1.4.0
+- Added three exercises: close your eyes fully ten times, raise and lower your shoulders,
+  and cover your eyes with your paws. Five phrasings each, in both languages.
+- The "stretch" exercise now animates instead of standing still.
+- The neck and shoulders exercise uses two drawn frames rather than two moved layers, so the
+  markings no longer drift.
+- The long break moves now: a full figure leans to each side every eight seconds.
+- Added a hydration reminder, with an interval and a portion you choose in the settings.
+- Added a tea timer: six teas and manual steeps.
+- Fixed Russian plurals for any number past one hundred, where 111 was shown as 111 second.
+
+
+* Where the settings live *
+============================
+settings.xml and tea.conf are in %APPDATA%\EyeLeo, usually
+C:\Users\<you>\AppData\Roaming\EyeLeo. Installing, replacing or uninstalling the program
+leaves both alone.
+
+The tea.conf next to this file is only a template. On the first run EyeLeo copies it to
+%APPDATA%\EyeLeo\tea.conf, and that copy is the one it reads, so edit the copy and not this
+one. One line per tea: name, temperature in C, then the seconds for each steep. The file
+explains itself further.
+
 Version 1.3.6 (October 2020)
 - Added a setting to show the short break as full screen.
 - Now seconds are always showed in the long break screen.
