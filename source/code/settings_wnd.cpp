@@ -45,6 +45,10 @@ wxString waterVolumeChoices[5] = {
 };
 int waterVolumeValues[] = {50, 100, 150, 200, 250};
 
+// Widths for the two rows of the water group, so a label and its value line up with the pair above.
+static const int kWaterLabelW = 80;
+static const int kWaterValueW = 120;
+
 bool SettingsWindow::inited = false;
 
 BEGIN_EVENT_TABLE(SettingsWindow, wxFrame)
@@ -255,12 +259,23 @@ SettingsWindow::SettingsWindow(const wxString &title)
                                        _("chkWaterReminder"));
     sizerWaterRow->Add(_chkWaterReminder, wxSizerFlags().Center().Border(wxALL, 3));
 
-    wxBoxSizer *sizerWaterOptions = new wxBoxSizer(wxHORIZONTAL);
+    // Two rows, not one row of four widgets.
+    //
+    // The single row was wrong twice over. With no spacer between a label and its box the two touched,
+    // because Add with a bare wxSizerFlags leaves zero gap, and the other rows of this window all put
+    // AddSpacer(6) there. And the second label started wherever the first combo happened to end, so the
+    // two columns only lined up by luck, and differently in English and Russian where the labels differ
+    // in length.
+    //
+    // Each label is given a fixed width so the two boxes start at the same x, and each box a fixed width
+    // so the rows read as one column. Both numbers are generous enough for the longest entry in either
+    // language: "120 minutes" and "250 мл".
+    wxBoxSizer *sizerWaterOptions = new wxBoxSizer(wxVERTICAL);
     _selWaterInterval = new wxComboBox(pageSettings,
                                        ID_SETTINGS_SEL_WATER_INTERVAL,
                                        wxEmptyString,
                                        wxDefaultPosition,
-                                       wxDefaultSize,
+                                       wxSize(kWaterValueW, -1),
                                        sizeof(waterIntervalChoices) / sizeof(waterIntervalChoices[0]),
                                        waterIntervalChoices,
                                        wxCB_DROPDOWN | wxCB_READONLY,
@@ -270,22 +285,34 @@ SettingsWindow::SettingsWindow(const wxString &title)
                                      ID_SETTINGS_SEL_WATER_VOLUME,
                                      wxEmptyString,
                                      wxDefaultPosition,
-                                     wxDefaultSize,
+                                     wxSize(kWaterValueW, -1),
                                      sizeof(waterVolumeChoices) / sizeof(waterVolumeChoices[0]),
                                      waterVolumeChoices,
                                      wxCB_DROPDOWN | wxCB_READONLY,
                                      wxDefaultValidator,
                                      _("selWaterVolume"));
-    sizerWaterOptions->Add(new wxStaticText(pageSettings, wxID_ANY,
-                                            langPack->Get("settings_water_interval_label")),
-                           wxSizerFlags().Center());
-    sizerWaterOptions->Add(_selWaterInterval, wxSizerFlags().Center());
-    sizerWaterOptions->AddSpacer(10);
-    sizerWaterOptions->Add(new wxStaticText(pageSettings, wxID_ANY,
-                                            langPack->Get("settings_water_volume_label")),
-                           wxSizerFlags().Center());
-    sizerWaterOptions->Add(_selWaterVolume, wxSizerFlags().Center());
-    sizerWater->Add(sizerWaterRow, wxSizerFlags().Center());
+
+    wxBoxSizer *sizerWaterIntervalRow = new wxBoxSizer(wxHORIZONTAL);
+    sizerWaterIntervalRow->Add(new wxStaticText(pageSettings, wxID_ANY,
+                                                langPack->Get("settings_water_interval_label"),
+                                                wxDefaultPosition, wxSize(kWaterLabelW, -1), wxALIGN_LEFT),
+                               wxSizerFlags().Center());
+    sizerWaterIntervalRow->AddSpacer(6);
+    sizerWaterIntervalRow->Add(_selWaterInterval, wxSizerFlags().Center());
+
+    wxBoxSizer *sizerWaterVolumeRow = new wxBoxSizer(wxHORIZONTAL);
+    sizerWaterVolumeRow->Add(new wxStaticText(pageSettings, wxID_ANY,
+                                              langPack->Get("settings_water_volume_label"),
+                                              wxDefaultPosition, wxSize(kWaterLabelW, -1), wxALIGN_LEFT),
+                             wxSizerFlags().Center());
+    sizerWaterVolumeRow->AddSpacer(6);
+    sizerWaterVolumeRow->Add(_selWaterVolume, wxSizerFlags().Center());
+
+    sizerWaterOptions->Add(sizerWaterIntervalRow, wxSizerFlags().Center());
+    sizerWaterOptions->AddSpacer(4);
+    sizerWaterOptions->Add(sizerWaterVolumeRow, wxSizerFlags().Center());
+
+    sizerWater->Add(sizerWaterRow, wxSizerFlags().Center().Border(wxBOTTOM, 3));
     sizerWater->Add(sizerWaterOptions, wxSizerFlags().Center().Border(wxBOTTOM, 4));
 
     imgIcon = new wxStaticBitmap(pageSettings, wxID_ANY, _iconSound);
