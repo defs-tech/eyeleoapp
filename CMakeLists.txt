@@ -78,6 +78,8 @@ target_sources(EyeLeo PRIVATE
     ${SOURCE_FILES_FOLDER}/logging.cpp
     ${SOURCE_FILES_FOLDER}/logging.h
     ${SOURCE_FILES_FOLDER}/main.h
+    ${SOURCE_FILES_FOLDER}/menu_tip.cpp
+    ${SOURCE_FILES_FOLDER}/menu_tip.h
     ${SOURCE_FILES_FOLDER}/minipause_wnd.cpp
     ${SOURCE_FILES_FOLDER}/minipause_wnd.h
     ${SOURCE_FILES_FOLDER}/notification_wnd.cpp

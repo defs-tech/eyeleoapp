@@ -357,6 +357,7 @@ public:
     EyeTaskBarIcon();
 
     virtual wxMenu *CreatePopupMenu();
+    virtual bool PopupMenu(wxMenu *menu);
 
     void ShowBalloonToolip(wxString const &text, unsigned msec = 1000 * 10);
     void UpdateTooltip(wxString const &text);
@@ -372,6 +373,7 @@ public:
 
 private:
     wxMenu *_menu;
+    wxMenu *_teaSubMenu; // kept so the tooltip can ask it which item is under the mouse
 
     wxIcon *_icon;
     wxIcon *_iconGray; // for paused mode

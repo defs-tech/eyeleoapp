@@ -8,6 +8,7 @@
 #include "image_resources.h"
 #include "language_set.h"
 #include "logging.h"
+#include "menu_tip.h"
 #include "minipause_wnd.h"
 #include "notification_wnd.h"
 #include "oscapabilities.h"
@@ -1671,7 +1672,8 @@ void EyeApp::OnSessionUnlock() {
 
 EyeTaskBarIcon::EyeTaskBarIcon()
     : wxTaskBarIcon()
-    , _menu(0) {
+    , _menu(0)
+    , _teaSubMenu(0) {
     _icon = new wxIcon(L"Resources/icon.ico", wxBITMAP_TYPE_ICO, 16, 16);
     if (!_icon->IsOk()) // case for larger fonts
     {
@@ -1767,6 +1769,9 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
     // The tea section. Water is not here: it has its own switch in the settings and counts working
     // time, while these are steeps the user drives by hand.
     EyeApp *app = getApp();
+    // Cleared first on purpose: the menu it used to point at was deleted when that one closed, and the
+    // branch below is not taken every time, so a stale handle could otherwise survive into PopupMenu.
+    _teaSubMenu = 0;
     if (app->IsTeaMenuEnabled()) {
         wxString pourLabel = langPack->Get("tb_menu_pour");
         int nextPour = app->GetTea().NextPourSeconds();
@@ -1778,6 +1783,7 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
         _menu->Append(item);
 
         wxMenu *teaMenu = new wxMenu();
+        _teaSubMenu = teaMenu;
         item = _menu->AppendSubMenu(teaMenu, langPack->Get("tb_menu_new_tea"));
 
         static const EDrinkKind kTeas[] = {DRINK_GREEN, DRINK_WHITE, DRINK_OOLONG,
@@ -1785,12 +1791,8 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
         for (int i = 0; i < (int)(sizeof(kTeas) / sizeof(kTeas[0])); i++) {
             EDrinkKind kind = kTeas[i];
 
-            // Just the name. The scheme used to be spelled out in the label because that was the only
-            // place wxWidgets 3.1.3 can put it on Windows: wxMenuItem there has no SetToolTip at all, no
-            // longHelp constructor parameter, and no tooltip handling in the MSW implementation, and the
-            // help string it does take is status bar text, which a tray icon has no place for. What it
-            // replaced is not lost: the Pour item above carries the countdown, and the bubble and
-            // tea.conf carry the full scheme.
+            // Just the name. The scheme cannot go here and stay readable, and it cannot go into a
+            // tooltip wxWidgets does not have, so PopupMenu below puts it on screen on hover instead.
             wxMenuItem *teaItem = new wxMenuItem(teaMenu, (int)(ID_TASKBAR_MENU_TEA_BASE + 1 + i),
                                                  EyeApp::TeaName(kind));
             // wxITEM_CHECK, and not wxITEM_RADIO, because a radio group cannot express "no tea brewing
@@ -1809,6 +1811,43 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
     _menu->Append(item);
 
     return _menu;
+}
+
+bool EyeTaskBarIcon::PopupMenu(wxMenu *menu) {
+    // Local to this call on purpose: a tip exists exactly as long as the menu is on the screen, which is
+    // the only time it has anything to point at, and its destructor is what takes the tooltip window
+    // down again. Tracking is also what the timer inside it needs, because that timer runs on the modal
+    // loop the tracking holds: there is nothing to see before this call and nothing after it.
+    MenuItemTip tip;
+
+    if (menu && _teaSubMenu) {
+        EyeApp *app = getApp();
+        static const EDrinkKind kTeas[] = {DRINK_GREEN, DRINK_WHITE, DRINK_OOLONG,
+                                           DRINK_BLACK, DRINK_PUER,  DRINK_HERBAL};
+        for (int i = 0; i < (int)(sizeof(kTeas) / sizeof(kTeas[0])); i++) {
+            const TeaSchedule *schedule = app->GetTea().ScheduleFor(kTeas[i]);
+            if (!schedule)
+                continue;
+
+            wxString list;
+            for (int s = 0; s < schedule->count; s++) {
+                if (s)
+                    list += L", ";
+                list += wxString::Format(L"%d", schedule->seconds[s]);
+            }
+            tip.SetItemText((int)(ID_TASKBAR_MENU_TEA_BASE + 1 + i),
+                            wxString::Format(langPack->Get("tea_scheme_fmt"), EyeApp::TeaName(kTeas[i]),
+                                             schedule->count, list, schedule->temperature));
+        }
+
+        tip.Start(menu->GetHMenu(), _teaSubMenu->GetHMenu());
+    }
+
+    bool rval = wxTaskBarIcon::PopupMenu(menu);
+
+    _teaSubMenu = 0;
+
+    return rval;
 }
 
 void EyeTaskBarIcon::OnPauseResumeMonitoring(wxCommandEvent &) {
