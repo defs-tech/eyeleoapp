@@ -62,20 +62,24 @@ bool DrinkReminderWindow::Init(int displayInd) {
     SetPosition(wxPoint(displayRect.GetRight() - GetSize().GetX(),
                         displayRect.GetBottom() - GetSize().GetY()));
 
-    _captionText = new wxStaticText(this, wxID_ANY, _caption, wxDefaultPosition, wxSize(118, 20),
+    // Caption and countdown sit in a 114pt column starting at x=85, with the sizes and positions the
+    // mac build uses on the same 209x71 bubble. The caption gets two lines at 11pt rather than one
+    // long line at 12pt, which is what let the whole string fit there; wxALIGN_CENTER centres
+    // vertically as well, like the AppKit field it copies.
+    _captionText = new wxStaticText(this, wxID_ANY, _caption, wxDefaultPosition, wxSize(114, 28),
                                     wxALIGN_CENTER);
-    _captionText->SetFont(wxFont(12, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false));
+    _captionText->SetFont(wxFont(11, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false));
     _captionText->SetForegroundColour(wxColour(255, 255, 255, 255));
     _captionText->SetBackgroundStyle(wxBG_STYLE_COLOUR);
     _captionText->SetBackgroundColour(wxColour(32, 33, 34));
-    _captionText->SetPosition(wxPoint(85, 13));
+    _captionText->SetPosition(wxPoint(85, 2));
 
-    _timeText = new wxStaticText(this, wxID_ANY, L"", wxDefaultPosition, wxSize(118, 26), wxALIGN_CENTER);
-    _timeText->SetFont(wxFont(14, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD, false));
+    _timeText = new wxStaticText(this, wxID_ANY, L"", wxDefaultPosition, wxSize(114, 20), wxALIGN_CENTER);
+    _timeText->SetFont(wxFont(13, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD, false));
     _timeText->SetForegroundColour(wxColour(255, 200, 70, 255));
     _timeText->SetBackgroundStyle(wxBG_STYLE_COLOUR);
     _timeText->SetBackgroundColour(wxColour(32, 33, 34));
-    _timeText->SetPosition(wxPoint(85, 33));
+    _timeText->SetPosition(wxPoint(85, 30));
 
     // The cup. Loaded here rather than at startup so a session that never triggers a reminder never
     // pays for eight bitmaps, and freed again when the window goes.

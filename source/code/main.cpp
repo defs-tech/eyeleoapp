@@ -579,10 +579,12 @@ wxString EyeApp::TeaReadyCaption() {
 }
 
 wxString EyeApp::TeaSteepCaption() {
+    // No tea name here, same as on mac: the cup in the bubble is a different shape for every tea, so
+    // the name would only repeat what the picture already says, and the column is 114pt wide. The
+    // name does appear in the "ready" notice, where the string is short.
     const TeaSchedule *schedule = _tea.ScheduleFor(_tea.Kind());
     double temperature = schedule ? schedule->temperature : 0.0;
-    return wxString::Format(langPack->Get("tea_caption_steep"), TeaName(_tea.Kind()), _tea.Steep() + 1,
-                            _tea.SteepCount(), temperature);
+    return wxString::Format(langPack->Get("tea_caption_steep"), _tea.Steep() + 1, _tea.SteepCount(), temperature);
 }
 
 wxString EyeApp::TeaName(EDrinkKind kind) {
@@ -637,10 +639,12 @@ void EyeApp::ShowTeaReminder(const wxString &caption, long msLeft, long autoDism
 }
 
 void EyeApp::CloseTeaReminder() {
-    if (_teaReminderWnd) {
+    // The pointer has to stay alive while the window fades out: the fade is driven by ExecuteTask, which
+    // resolves the window by name through getWindow, and that lookup goes through this very pointer.
+    // Clearing it here would strand the window on screen forever. OnDrinkReminderWindowClosed drops it
+    // from the destructor, once the window is really gone.
+    if (_teaReminderWnd)
         _teaReminderWnd->Hide();
-        _teaReminderWnd = nullptr;
-    }
 }
 
 bool EyeApp::IsTeaMenuEnabled() const {
@@ -1463,10 +1467,9 @@ void EyeApp::ShowWaterReminder() {
 }
 
 void EyeApp::CloseWaterReminder() {
-    if (_waterReminderWnd) {
+    // Same reasoning as CloseTeaReminder: the pointer outlives the fade on purpose.
+    if (_waterReminderWnd)
         _waterReminderWnd->Hide();
-        _waterReminderWnd = nullptr;
-    }
 }
 
 void EyeApp::ResetSettings() {
@@ -1781,26 +1784,21 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
                                            DRINK_BLACK, DRINK_PUER,  DRINK_HERBAL};
         for (int i = 0; i < (int)(sizeof(kTeas) / sizeof(kTeas[0])); i++) {
             EDrinkKind kind = kTeas[i];
-            const TeaSchedule *schedule = app->GetTea().ScheduleFor(kind);
 
-            // The scheme goes into the item's own label, because that is the only place wxWidgets 3.1.3
-            // can put it on Windows. Read from that version's sources: wxMenuItem there has no
-            // SetToolTip at all, no longHelp constructor parameter either, and no tooltip handling in
-            // the MSW implementation. The help string it does take is the status bar text, and a tray
-            // icon has no status bar, which is why an earlier attempt passed the scheme as that fourth
-            // argument and the user saw nothing.
-            wxString label = EyeApp::TeaName(kind);
-            if (schedule) {
-                wxString list;
-                for (int s = 0; s < schedule->count; s++) {
-                    if (s)
-                        list += L", ";
-                    list += wxString::Format(L"%d", schedule->seconds[s]);
-                }
-                label = wxString::Format(langPack->Get("tea_scheme_fmt"), label, schedule->count, list);
-            }
-
-            wxMenuItem *teaItem = new wxMenuItem(teaMenu, (int)(ID_TASKBAR_MENU_TEA_BASE + 1 + i), label);
+            // Just the name. The scheme used to be spelled out in the label because that was the only
+            // place wxWidgets 3.1.3 can put it on Windows: wxMenuItem there has no SetToolTip at all, no
+            // longHelp constructor parameter, and no tooltip handling in the MSW implementation, and the
+            // help string it does take is status bar text, which a tray icon has no place for. What it
+            // replaced is not lost: the Pour item above carries the countdown, and the bubble and
+            // tea.conf carry the full scheme.
+            wxMenuItem *teaItem = new wxMenuItem(teaMenu, (int)(ID_TASKBAR_MENU_TEA_BASE + 1 + i),
+                                                 EyeApp::TeaName(kind));
+            // wxITEM_CHECK, and not wxITEM_RADIO, because a radio group cannot express "no tea brewing
+            // yet", which is a state this menu has. It is also the only kind that draws a tickmark at
+            // all: Check() returns immediately on a plain item, at wxCHECK_RET(IsCheckable()), and
+            // Append only passes MF_CHECKED on while IsCheck() holds, so without this the tickmark
+            // never appears at all.
+            teaItem->SetKind(wxITEM_CHECK);
             teaItem->Check(app->GetTea().IsBrewing() && app->GetTea().Kind() == kind);
             teaMenu->Append(teaItem);
         }
