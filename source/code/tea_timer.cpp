@@ -3,6 +3,7 @@
 #include "logging.h"
 
 #include <wx/arrstr.h>
+#include <wx/file.h>
 #include <wx/filefn.h>
 #include <wx/string.h>
 
