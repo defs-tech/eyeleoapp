@@ -1,7 +1,7 @@
 #ifndef MENU_TIP_H
 #define MENU_TIP_H
 
-#include <wx/evt.h>
+#include <wx/event.h>
 #include <wx/string.h>
 #include <wx/timer.h>
 
