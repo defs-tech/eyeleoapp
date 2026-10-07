@@ -502,27 +502,49 @@ ITask *EyeApp::getWindow(const wxString &address) {
             return *wnd;
     }
 
+    // Every reminder has to be reachable here by name, or its task never runs. The task manager resolves
+    // names through this function, and a name it cannot resolve means ExecuteTask is never called at
+    // all: the window stays at zero alpha, so it never fades in, never counts down, and never closes.
+    // Worse, its destructor never runs either, so the class's single-instance flag stays set and every
+    // later reminder is dropped without a word. That is exactly how the hydration and tea bubbles failed
+    // to appear at all.
+    DrinkReminderWindow *reminders[2] = {_waterReminderWnd, _teaReminderWnd};
+    for (int i = 0; i < 2; i++)
+        if (reminders[i] && reminders[i]->GetName() == address)
+            return reminders[i];
+
     return nullptr;
 }
 
 void EyeApp::StartTea(EDrinkKind kind) {
-    logging::msg("StartTea");
+    logging::msg(wxString::Format(L"StartTea kind=%d", kind));
 
-    // Not while something else owns the screen, and not on top of another reminder.
-    if (_notificationWnd || _waterReminderWnd || _teaReminderWnd)
+    // Every one of these used to return in silence, which made a refusal look exactly like a failure
+    // somewhere else. The reason belongs in the log, because the symptom is identical every time.
+    if (_notificationWnd || _waterReminderWnd || _teaReminderWnd) {
+        logging::msg("StartTea refused: another reminder is already on screen");
         return;
-    if (_bigPauseWnds.size() || _miniPauseWnds.size())
+    }
+    if (_bigPauseWnds.size() || _miniPauseWnds.size()) {
+        logging::msg("StartTea refused: a break is on screen");
         return;
+    }
 
-    if (!_tea.Start(kind))
+    if (!_tea.Start(kind)) {
+        logging::msg(wxString::Format(L"StartTea refused: no schedule for kind %d", kind));
         return;
+    }
 
     TickTea(0);
 }
 
 void EyeApp::PourNextSteep() {
-    if (!_tea.Pour())
+    if (!_tea.Pour()) {
+        // Either nothing is brewing or the current steep is still running, and those look the same from
+        // the menu, which is why the item is disabled unless a steep is over.
+        logging::msg("Pour refused: nothing to pour yet");
         return;
+    }
 
     TickTea(0);
 }
@@ -595,12 +617,20 @@ void EyeApp::ShowTeaReminder(const wxString &caption, long msLeft, long autoDism
         return;
     }
 
-    // Something else already owns the single reminder slot, most likely the hydration bubble.
-    if (DrinkReminderWindow::HasInstance())
+    // Something else already owns the single reminder slot, most likely the hydration bubble. There is
+    // one bubble by design, so refusing is right, but it must not be silent: a tea that silently does
+    // nothing is indistinguishable from a broken one.
+    if (DrinkReminderWindow::HasInstance()) {
+        logging::msg("tea reminder not shown: another reminder already holds the slot");
         return;
+    }
 
-    _teaReminderWnd = new DrinkReminderWindow(_tea.Kind(), caption, 0);
-    _teaReminderWnd->Init(0);
+    DrinkReminderWindow *wnd = new DrinkReminderWindow(_tea.Kind(), caption, 0);
+    if (!wnd->Init(0)) {
+        delete wnd;
+        return;
+    }
+    _teaReminderWnd = wnd;
     _teaReminderWnd->SetTimeLabel(msLeft);
     if (autoDismissMs > 0)
         _teaReminderWnd->SetAutoDismiss(autoDismissMs);
@@ -1406,8 +1436,10 @@ void EyeApp::RestartWaterInterval() {
 }
 
 void EyeApp::ShowWaterReminder() {
-    if (DrinkReminderWindow::HasInstance())
+    if (DrinkReminderWindow::HasInstance()) {
+        logging::msg("water reminder not shown: another reminder already holds the slot");
         return;
+    }
 
     int fullscreenDisplay = -1;
     bool isFullscreen = IsFullscreenAppRunning(&fullscreenDisplay);
@@ -1416,11 +1448,18 @@ void EyeApp::ShowWaterReminder() {
         if (isFullscreen && fullscreenDisplay == displayInd)
             continue;
 
-        _waterReminderWnd = new DrinkReminderWindow(DRINK_WATER, langPack->Get(L"water_reminder_label"),
-                                                    kDrinkReminderSec * 1000);
-        _waterReminderWnd->Init(displayInd);
+        DrinkReminderWindow *wnd = new DrinkReminderWindow(DRINK_WATER, langPack->Get(L"water_reminder_label"),
+                                                          kDrinkReminderSec * 1000);
+        if (!wnd->Init(displayInd)) {
+            delete wnd;
+            return;
+        }
+        _waterReminderWnd = wnd;
         break;
     }
+
+    if (!_waterReminderWnd)
+        logging::msg("water reminder not shown: every display is fullscreen");
 }
 
 void EyeApp::CloseWaterReminder() {
@@ -1754,9 +1793,14 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
                 tip = wxString::Format(langPack->Get("tea_scheme_fmt"), schedule->count, list);
             }
 
+            // The scheme goes through SetToolTip, not into the constructor. The fourth argument of
+            // wxMenuItem is help, which is the text for a status bar, and a tray icon has no status bar,
+            // so passing the scheme there put it nowhere the user could ever see it.
             wxMenuItem *teaItem =
                 new wxMenuItem(teaMenu, (int)(ID_TASKBAR_MENU_TEA_BASE + 1 + i),
-                               EyeApp::TeaName(kind), tip);
+                               EyeApp::TeaName(kind));
+            if (!tip.IsEmpty())
+                teaItem->SetToolTip(tip);
             teaItem->Check(app->GetTea().IsBrewing() && app->GetTea().Kind() == kind);
             teaMenu->Append(teaItem);
         }

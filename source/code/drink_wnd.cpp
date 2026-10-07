@@ -33,8 +33,15 @@ DrinkReminderWindow::DrinkReminderWindow(int drinkKind, const wxString &caption,
     SetName("DrinkReminderWindow");
 }
 
-void DrinkReminderWindow::Init(int displayInd) {
-    assert(DrinkReminderWindow::sInstance == 0);
+bool DrinkReminderWindow::Init(int displayInd) {
+    if (DrinkReminderWindow::sInstance) {
+        // Not an assert: those are removed in Release, and this is exactly the place where a stray
+        // instance would otherwise be overwritten without a word. The flag would then point at a dead
+        // window, its own destructor would not clear it, and every later reminder would be dropped
+        // silently for the rest of the session. Better to say so and show nothing this once.
+        logging::msg("a drink reminder is already up; discarding this one");
+        return false;
+    }
     DrinkReminderWindow::sInstance = this;
 
     refillResolutionParams();
@@ -87,6 +94,7 @@ void DrinkReminderWindow::Init(int displayInd) {
     _alpha = 0.0f;
 
     Show(true);
+    return true;
 }
 
 DrinkReminderWindow::~DrinkReminderWindow() {
@@ -184,13 +192,18 @@ void DrinkReminderWindow::ExecuteTask(float f, long time_went) {
 void DrinkReminderWindow::UpdateTimeLabel() {
     if (!_timeText)
         return;
-    if (_shownMsLeft <= 0) {
-        // No countdown to show: the tea is ready, or the bubble is just a caption.
+
+    // Two possible countdowns, and the tea timer sets its own explicitly. When it does not, what the
+    // user is waiting for is this bubble closing, so that is what the number shows: the hydration
+    // reminder never sets a countdown of its own and used to end up with a blank where the number goes.
+    long shown = _shownMsLeft > 0 ? _shownMsLeft : _activeMsLeft;
+    if (shown <= 0) {
+        // Nothing left to count: the tea is ready, or the bubble is just a caption.
         if (_timeText->GetLabel() != wxEmptyString)
             _timeText->SetLabel(wxEmptyString);
         return;
     }
-    int secsLeft = (int)((_shownMsLeft - 1) / 1000 + 1);
+    int secsLeft = (int)((shown - 1) / 1000 + 1);
     wxString newStr = wxString::Format(L"%d", secsLeft);
     if (_timeText->GetLabel() != newStr)
         _timeText->SetLabel(newStr);

@@ -32,7 +32,11 @@ public:
     DrinkReminderWindow(int drinkKind, const wxString &caption, long showForMs);
     virtual ~DrinkReminderWindow();
 
-    void Init(int displayInd);
+    // False when it refused to come up because another reminder already holds the slot. The caller has
+    // to delete the object then and must not keep the pointer: a window that was never initialised has
+    // no task registered and no way to close, so a stored pointer to it would block every later
+    // reminder for the rest of the session.
+    bool Init(int displayInd);
 
     // The countdown the bubble shows, which is not the same thing as how long it stays up: the tea
     // timer counts down to the next pour while the bubble itself stays until the pour happens.
