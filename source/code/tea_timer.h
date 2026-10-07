@@ -23,6 +23,8 @@ struct TeaSchedule {
 // button rather than a smarter guess. The countdown only runs out; it never moves on by itself.
 class TeaTimer {
 public:
+    TeaTimer();
+
     // Reads tea.conf if it is there and readable. A missing or malformed file is not an error: the
     // built-in schedules stand, because a typo in a config file should not cost the user their teas.
     // A default-constructed object already holds those built-in schedules.

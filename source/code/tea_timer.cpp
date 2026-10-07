@@ -4,7 +4,6 @@
 
 #include <wx/arrstr.h>
 #include <wx/filefn.h>
-#include <wx/ffile.h>
 #include <wx/string.h>
 
 // The shipped schedules. Green and white are short and stepped, oolong and black longer, pu-erh longest
@@ -74,30 +73,35 @@ void TeaTimer::LoadConfig(const wxString &path) {
         return;
     }
 
-    wxFFile file(path, "rb");
-    if (!file.IsOpened()) {
-        logging::msg("tea.conf could not be opened, using the built-in schedules");
-        return;
-    }
-
-    wxString content;
     wxString text;
-    // Read as UTF-8 so a file written on any platform comes in the same way.
-    if (!file.ReadAll(&text, wxConvUTF8) || text.IsEmpty()) {
+    // Read as UTF-8, so a file written on any platform comes in the same way. ReadFile rather than
+    // wxFFile so nothing depends on which wx header pulls in which piece of the file API.
+    if (!wxFile::ReadFile(path, &text, wxConvUTF8) || text.IsEmpty()) {
         logging::msg("tea.conf is empty or not valid UTF-8, using the built-in schedules");
         return;
     }
 
     // One tea per line: name, temperature, then the steeps in seconds.
     //   puer, 99, 20, 30, 40, 50, 60, 70, 80, 90
-    content = text;
-    wxArrayString lines = wxStringSplit(content, wxT("\n"), wxTOKEN_STRTOK);
-    for (size_t i = 0; i < lines.GetCount(); i++) {
-        wxString line = lines[i].Strip(wxString::both);
+    wxString rest = text;
+    while (!rest.IsEmpty()) {
+        wxString line = rest.BeforeFirst('\n');
+        rest = rest.AfterFirst('\n');
+
+        line = line.Strip(wxString::both);
         if (line.IsEmpty() || line[0] == '#')
             continue;
 
-        wxArrayString parts = wxStringSplit(line, wxT(","), wxTOKEN_STRTOK);
+        // name, temperature, then the steeps.
+        wxArrayString parts;
+        wxString fields = line;
+        while (!fields.IsEmpty()) {
+            wxString field = fields.BeforeFirst(',');
+            fields = fields.AfterFirst(',');
+            field = field.Strip(wxString::both);
+            if (!field.IsEmpty())
+                parts.Add(field);
+        }
         if (parts.GetCount() < 3)
             continue;
 
