@@ -17,7 +17,7 @@
 	<string id="tb_menu_pour" text="Пролив" />
 	<string id="tb_menu_pour_fmt" text="Пролив (%d с)" />
 	<string id="tb_menu_new_tea" text="Новый чай" />
-	<string id="tea_scheme_fmt" text="проливов: %d, по %s с" />
+	<string id="tea_scheme_fmt" text="%s: проливов %d, по %s с" />
 	<string id="tea_name_green" text="Зелёный чай" />
 	<string id="tea_name_white" text="Белый чай" />
 	<string id="tea_name_oolong" text="Улун" />

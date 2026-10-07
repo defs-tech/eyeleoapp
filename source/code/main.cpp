@@ -1782,7 +1782,14 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
         for (int i = 0; i < (int)(sizeof(kTeas) / sizeof(kTeas[0])); i++) {
             EDrinkKind kind = kTeas[i];
             const TeaSchedule *schedule = app->GetTea().ScheduleFor(kind);
-            wxString tip;
+
+            // The scheme goes into the item's own label, because that is the only place wxWidgets 3.1.3
+            // can put it on Windows. Read from that version's sources: wxMenuItem there has no
+            // SetToolTip at all, no longHelp constructor parameter either, and no tooltip handling in
+            // the MSW implementation. The help string it does take is the status bar text, and a tray
+            // icon has no status bar, which is why an earlier attempt passed the scheme as that fourth
+            // argument and the user saw nothing.
+            wxString label = EyeApp::TeaName(kind);
             if (schedule) {
                 wxString list;
                 for (int s = 0; s < schedule->count; s++) {
@@ -1790,16 +1797,10 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
                         list += L", ";
                     list += wxString::Format(L"%d", schedule->seconds[s]);
                 }
-                tip = wxString::Format(langPack->Get("tea_scheme_fmt"), schedule->count, list);
+                label = wxString::Format(langPack->Get("tea_scheme_fmt"), label, schedule->count, list);
             }
 
-            // The scheme goes in as longHelp, the fifth argument, which is what Windows shows as a
-            // tooltip. The fourth argument is help, the text for a status bar, and a tray icon has no
-            // status bar, so putting the scheme there sent it nowhere the user could see. And
-            // SetToolTip does not exist on wxMenuItem in 3.1.3 at all, which is what the compiler said.
-            wxMenuItem *teaItem =
-                new wxMenuItem(teaMenu, (int)(ID_TASKBAR_MENU_TEA_BASE + 1 + i), EyeApp::TeaName(kind),
-                               wxEmptyString, tip, wxNullBitmap);
+            wxMenuItem *teaItem = new wxMenuItem(teaMenu, (int)(ID_TASKBAR_MENU_TEA_BASE + 1 + i), label);
             teaItem->Check(app->GetTea().IsBrewing() && app->GetTea().Kind() == kind);
             teaMenu->Append(teaItem);
         }
