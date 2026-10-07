@@ -6,11 +6,23 @@
 #include "wx/wx.h"
 #include <vector>
 
+// The hydration reminder. The allowed values are lists rather than ranges, so a value that is not on
+// the list is snapped to the nearest one instead of merely clamped: a setting file written by a
+// different version cannot land between two choices and then sit there invalid.
+static const int kWaterIntervalsMin[] = {15, 20, 25, 30, 45, 60, 90, 120};
+static const int kWaterVolumesMl[] = {50, 100, 150, 200, 250};
+static const int kWaterIntervalDefaultMin = 30;
+static const int kWaterVolumeDefaultMl = 100;
+
+// The worst combination the two lists allow is 15 min x 250 ml = 1000 ml/hour, against the 1414
+// ml/hour above which NIOSH warns about water intoxication, so no setting can breach it.
+
 class SettingsWindow;
 class BigPauseWindow;
 class MiniPauseWindow;
 class WaitingFullscreenWindow;
 class NotificationWindow;
+class DrinkReminderWindow;
 class BeforePauseWindow;
 
 enum EStates
@@ -124,6 +136,15 @@ public:
     bool GetMiniPauseFullscreenEnabled() const {
         return _miniPauseFullscreenEnabled;
     }
+    bool GetWaterReminderEnabled() const {
+        return _enableWaterReminder;
+    }
+    int GetWaterInterval() const {
+        return _waterInterval;
+    }
+    int GetWaterVolume() const {
+        return _waterVolume;
+    }
 
     void SetBigPauseEnabled(bool enabled) {
         _enableBigPause = enabled;
@@ -169,6 +190,15 @@ public:
     }
     void SetMiniPauseFullscreenEnabled(bool enabled) {
         _miniPauseFullscreenEnabled = enabled;
+    }
+    void SetWaterReminderEnabled(bool enabled) {
+        _enableWaterReminder = enabled;
+    }
+    void SetWaterInterval(int interval) {
+        _waterInterval = interval;
+    }
+    void SetWaterVolume(int volume) {
+        _waterVolume = volume;
     }
 
     bool IsFullscreenAppRunning(int *display = 0, HWND *fullscreenWndHandle = 0) const;
@@ -241,6 +271,9 @@ private:
     bool _firstLaunch;
     bool _showNotificationsEnabled;
     bool _miniPauseFullscreenEnabled;
+    bool _enableWaterReminder;
+    int _waterInterval; // in minutes
+    int _waterVolume;   // in millilitres
 
     // statistics
     unsigned int _userShortBreakCount;
@@ -258,6 +291,7 @@ private:
     long _timeLeftToBigPause;  // ms
     long _timeLeftToMiniPause; // ms
 
+    long _timeToWaterReminder; // ms, working time only
     long _relaxingTimeLeft;
     long _fullscreenBlockDuration;
     long _timeUntilWaitingWnd;
@@ -271,10 +305,14 @@ private:
     std::vector<WaitingFullscreenWindow *> _waitWnds;
     std::vector<BeforePauseWindow *> _beforePauseWnds;
     NotificationWindow *_notificationWnd;
+    DrinkReminderWindow *_waterReminderWnd;
 
     void ReadConfig();
 
     void RestartMiniPauseInterval();
+    void RestartWaterInterval();
+    void ShowWaterReminder();
+    void CloseWaterReminder();
     void SetBigPauseTime(long ms);
     void SetMiniPauseTime(long ms);
 

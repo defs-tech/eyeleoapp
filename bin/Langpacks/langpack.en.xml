@@ -24,6 +24,24 @@
 	<string id="settings_title" text="EyeLeo settings" />
 	<string id="settings_settings_tab" text="Settings" />
 	<string id="settings_information_tab" text="Information" />
+	<string id="settings_water_group_label" text="Water" />
+	<string id="settings_water_reminder_label" text="Remind me to drink" />
+	<string id="settings_water_interval_label" text="Every" />
+	<string id="settings_water_volume_label" text="Portion" />
+	<string id="settings_water_interval_value_1" text="15 minutes" />
+	<string id="settings_water_interval_value_2" text="20 minutes" />
+	<string id="settings_water_interval_value_3" text="25 minutes" />
+	<string id="settings_water_interval_value_4" text="30 minutes" />
+	<string id="settings_water_interval_value_5" text="45 minutes" />
+	<string id="settings_water_interval_value_6" text="60 minutes" />
+	<string id="settings_water_interval_value_7" text="90 minutes" />
+	<string id="settings_water_interval_value_8" text="120 minutes" />
+	<string id="settings_water_volume_value_1" text="50 ml" />
+	<string id="settings_water_volume_value_2" text="100 ml" />
+	<string id="settings_water_volume_value_3" text="150 ml" />
+	<string id="settings_water_volume_value_4" text="200 ml" />
+	<string id="settings_water_volume_value_5" text="250 ml" />
+	<string id="water_reminder_label" text="Drink some water" />
 	<string id="settings_general_panel_label" text="General" />
 	
 	<string id="settings_big_pause_label_1" text="Take a long break every" />

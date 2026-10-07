@@ -3,6 +3,7 @@
 #include "beforepause_wnd.h"
 #include "bigpause_wnd.h"
 #include "debug_wnd.h"
+#include "drink_wnd.h"
 #include "excercises.h"
 #include "image_resources.h"
 #include "language_set.h"
@@ -57,6 +58,7 @@ EyeApp::EyeApp()
     , _inactivityTime(0)
     , _timeLeftToBigPause(0)
     , _timeLeftToMiniPause(0)
+    , _timeToWaterReminder(0)
     , _bigPauseInterval(0)
     , _relaxingTimeLeft(0)
     , _fullscreenBlockDuration(0)
@@ -82,6 +84,7 @@ EyeApp::EyeApp()
     , _finished(false)
     , _lastShutdown()
     , _notificationWnd(nullptr)
+    , _waterReminderWnd(nullptr)
     , _showedLongBreakCountdown(false) {
     g_eyeApp = this;
 }
@@ -195,6 +198,11 @@ bool EyeApp::OnInit() {
         } else {
             ApplySettings();
         }
+
+        // Water is not resumed from the previous session, by design, so it always starts a full
+        // interval in. Done here rather than in ApplySettings() because the branch above sets the two
+        // break timers by hand and never calls that.
+        RestartWaterInterval();
     }
 
     PrepareActivityMonitor();
@@ -529,7 +537,9 @@ void EyeApp::ExecuteTask(float, long time_went) {
     } break;
 
     case STATE_IDLE:
-        if (_enableBigPause || _enableMiniPause) {
+        // Water counts as a reason to stay in idle. Without this, turning both breaks off would also
+        // silently stop the hydration reminder, with nothing on screen to say so.
+        if (_enableBigPause || _enableMiniPause || _enableWaterReminder) {
             RepeatState();
 
             UpdateTaskbarText();
@@ -541,6 +551,25 @@ void EyeApp::ExecuteTask(float, long time_went) {
                 {
                     AutoRelax();
                     break;
+                }
+            }
+
+            // Deliberately after the auto-relax check and outside every multiplier: a reminder is not
+            // a break, so it should not arrive eight times faster because the break timers do, and it
+            // should not pile up against someone who has left the desk. Auto-relax gets here only
+            // while the machine is still in use, which is the only case worth reminding about.
+            if (_enableWaterReminder && _timeToWaterReminder > 0) {
+                _timeToWaterReminder -= time_went;
+
+                if (_timeToWaterReminder <= 0) {
+                    _timeToWaterReminder = 0;
+                    if (!_enableBigPause && !_enableMiniPause) {
+                        // Nobody is going to interrupt, so do not put a bubble over the screen.
+                        RestartWaterInterval();
+                    } else {
+                        ShowWaterReminder();
+                        RestartWaterInterval();
+                    }
                 }
             }
 
@@ -1050,9 +1079,30 @@ bool EyeApp::LoadSettings() {
         } else if (wcscmp(name, L"mini_pause_fullscreen_mode") == 0) {
             bool enabled = node.attribute(L"enabled").as_bool();
             _miniPauseFullscreenEnabled = enabled;
+        } else if (wcscmp(name, L"water") == 0) {
+            // Absent in a settings file from before this existed, in which case the defaults stand.
+            _enableWaterReminder = node.attribute(L"enabled").as_bool(_enableWaterReminder);
+            _waterInterval = node.attribute(L"interval").as_int(_waterInterval);
+            _waterVolume = node.attribute(L"volume").as_int(_waterVolume);
         }
     }
     return true;
+}
+
+// Snaps a value onto the list of allowed choices. A settings file written by another build, or edited
+// by hand, can hold a value that is not on the list; rounding to the nearest entry keeps the setting
+// usable instead of silently invalid.
+static int SnapToList(int value, const int *list, int count) {
+    int best = list[0];
+    long bestDiff = labs((long)value - (long)best);
+    for (int i = 1; i < count; i++) {
+        long diff = labs((long)value - (long)list[i]);
+        if (diff < bestDiff) {
+            bestDiff = diff;
+            best = list[i];
+        }
+    }
+    return best;
 }
 
 void EyeApp::CheckSettings() {
@@ -1089,6 +1139,22 @@ void EyeApp::CheckSettings() {
         assert(false);
 
         _miniPauseDuration = 20;
+    }
+
+    {
+        int numIntervals = sizeof(kWaterIntervalsMin) / sizeof(kWaterIntervalsMin[0]);
+        int snapped = SnapToList(_waterInterval, kWaterIntervalsMin, numIntervals);
+        if (snapped != _waterInterval) {
+            logging::msg(wxString::Format(L"CheckSettings: waterInterval %d -> %d", _waterInterval,
+                                           snapped));
+            _waterInterval = snapped;
+        }
+        int numVolumes = sizeof(kWaterVolumesMl) / sizeof(kWaterVolumesMl[0]);
+        snapped = SnapToList(_waterVolume, kWaterVolumesMl, numVolumes);
+        if (snapped != _waterVolume) {
+            logging::msg(wxString::Format(L"CheckSettings: waterVolume %d -> %d", _waterVolume, snapped));
+            _waterVolume = snapped;
+        }
     }
 
     if (_timeLeftToBigPause > 1000 * 60 * _bigPauseInterval) {
@@ -1186,7 +1252,44 @@ void EyeApp::SaveSettings() {
     nodeMiniPauseFullscreenMode.set_name(L"mini_pause_fullscreen_mode");
     nodeMiniPauseFullscreenMode.append_attribute(L"enabled") = GetMiniPauseFullscreenEnabled();
 
+    pugi::xml_node nodeWater = node.append_child(pugi::node_element);
+    nodeWater.set_name(L"water");
+    nodeWater.append_attribute(L"enabled") = GetWaterReminderEnabled();
+    nodeWater.append_attribute(L"interval") = GetWaterInterval();
+    nodeWater.append_attribute(L"volume") = GetWaterVolume();
+
     doc.save_file((GetSavePath() + L"settings.xml").wchar_str(), L"\t");
+}
+
+void EyeApp::RestartWaterInterval() {
+    // Deliberately not persisted: the first reminder of a session always comes a full interval in, so
+    // restarting the app cannot be used to skip a drink.
+    _timeToWaterReminder = (long)_waterInterval * 60 * 1000;
+}
+
+void EyeApp::ShowWaterReminder() {
+    if (DrinkReminderWindow::HasInstance())
+        return;
+
+    int fullscreenDisplay = -1;
+    bool isFullscreen = IsFullscreenAppRunning(&fullscreenDisplay);
+
+    for (int displayInd = 0; displayInd < osCaps.numDisplays; ++displayInd) {
+        if (isFullscreen && fullscreenDisplay == displayInd)
+            continue;
+
+        _waterReminderWnd = new DrinkReminderWindow(DRINK_WATER, langPack->Get(L"water_reminder_label"),
+                                                    kDrinkReminderSec * 1000);
+        _waterReminderWnd->Init(displayInd);
+        break;
+    }
+}
+
+void EyeApp::CloseWaterReminder() {
+    if (_waterReminderWnd) {
+        _waterReminderWnd->Hide();
+        _waterReminderWnd = nullptr;
+    }
 }
 
 void EyeApp::ResetSettings() {
@@ -1207,6 +1310,9 @@ void EyeApp::ResetSettings() {
     _settingInactivityTracking = true;
     _showNotificationsEnabled = true;
     _miniPauseFullscreenEnabled = false;
+    _enableWaterReminder = true;
+    _waterInterval = kWaterIntervalDefaultMin;
+    _waterVolume = kWaterVolumeDefaultMl;
 }
 
 void EyeApp::ApplySettings() {
@@ -1214,6 +1320,7 @@ void EyeApp::ApplySettings() {
 
     RestartBigPauseInterval();
     RestartMiniPauseInterval();
+    RestartWaterInterval();
     UpdateTaskbarText();
 }
 
@@ -1330,6 +1437,10 @@ int EyeApp::OnExit() {
 
     Stop();
 
+    // The reminder is an ordinary frame with a task of its own, so it has to go before the task
+    // manager stops; leaving it up would keep it registered and tick against a dead manager.
+    CloseWaterReminder();
+
     DeleteLanguagePack();
     delete g_Personage;
 
@@ -1356,6 +1467,8 @@ void EyeApp::OnEndSession(wxCloseEvent &evt) {
     _taskBarIcon->RemoveIcon();
 
     Stop();
+
+    CloseWaterReminder();
 
     wxApp::OnEndSession(evt);
 

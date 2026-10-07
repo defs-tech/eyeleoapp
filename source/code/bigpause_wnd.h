@@ -46,6 +46,9 @@ private:
     // The portrait. A member rather than a local, because the long break now cycles the
     // full-figure frames through it.
     wxStaticBitmap *_personageImg;
+    // Where the long break's four-pose cycle has got to, and how long the current pose is held.
+    int _stretchPhase;
+    long _stretchMsLeft;
     wxStaticText *_timeText;
     wxBoxSizer *_sizer;
 

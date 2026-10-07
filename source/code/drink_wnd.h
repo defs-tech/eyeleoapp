@@ -1,0 +1,69 @@
+#ifndef DRINK_WND_H
+#define DRINK_WND_H
+
+#include "image_resources.h"
+#include "task_mgr.h"
+#include "wx/timer.h"
+#include "wx/wx.h"
+
+class wxBitmap;
+
+// How long a drink reminder stays up on its own. The hydration one is long enough to notice without
+// becoming something to dismiss, and the tea timer uses a much shorter one for the "ready" notice.
+static const long kDrinkReminderSec = 15;
+static const long kTeaReadyNoticeSec = 5;
+
+// The hydration and tea reminder. Same 209x71 bubble, same bottom right corner and same countdown as
+// the long break countdown, with a cup in place of the portrait and a caption above the countdown.
+//
+// It is advisory, unlike a break overlay: it takes no input at all, so it never captures the keyboard
+// and never blocks a click aimed at whatever is behind it. A right click hides it only when the user
+// has allowed notifications to be closed by hand, which is the same rule the countdown follows.
+class DrinkReminderWindow : public wxFrame, public ITask {
+    enum EState {
+        STATE_SHOWING,
+        STATE_ACTIVE,
+        STATE_HIDING,
+        STATE_DONE
+    };
+
+public:
+    // showForMs of 0 means the window stays until it is hidden.
+    DrinkReminderWindow(int drinkKind, const wxString &caption, long showForMs);
+    virtual ~DrinkReminderWindow();
+
+    void Init(int displayInd);
+
+    // Replaces the caption in place. The tea timer changes its caption on every steep, and rebuilding
+    // the window would drop it under whatever the redraw pushed up.
+    void SetCaption(const wxString &caption);
+
+    virtual bool Hide();
+
+    static bool HasInstance() {
+        return sInstance != 0;
+    }
+
+private:
+    void ExecuteTask(float f, long time_went);
+    void UpdateTimeLabel();
+    void OnClose(wxCloseEvent &event);
+    void OnMouseTap(wxMouseEvent &);
+
+    static DrinkReminderWindow *sInstance;
+
+    EState _state;
+    int _drinkKind;
+    wxString _caption;
+
+    long _msLeft;   // until it closes itself, or -1 when it stays until hidden
+    float _alpha;
+    bool _preventClosing;
+
+    wxStaticText *_captionText;
+    wxStaticText *_timeText;
+
+    DECLARE_EVENT_TABLE()
+};
+
+#endif

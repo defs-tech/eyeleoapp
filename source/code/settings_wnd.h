@@ -22,6 +22,10 @@ enum
     ID_SETTINGS_SEL_MINI_PAUSE_INTERVAL,
     ID_SETTINGS_SEL_MINI_PAUSE_DURATION,
 
+    ID_SETTINGS_CHK_WATER_REMINDER,
+    ID_SETTINGS_SEL_WATER_INTERVAL,
+    ID_SETTINGS_SEL_WATER_VOLUME,
+
     ID_SETTINGS_CHK_ENABLE_SOUNDS,
     ID_SETTINGS_CHK_CAN_CLOSE_NOTIFICATIONS,
     ID_SETTINGS_CHK_ENABLE_STRICT_MODE,
@@ -52,6 +56,7 @@ public:
     void OnMiniPauseEnabledClicked(wxCommandEvent &event);
     void OnWarningEnabledClicked(wxCommandEvent &event);
     void OnSoundsEnabledClicked(wxCommandEvent &event);
+    void OnWaterReminderClicked(wxCommandEvent &event);
     void OnStrictModeEnabledClicked(wxCommandEvent &event);
     void OnCanCloseNotificationsClicked(wxCommandEvent &event);
     void OnMiniPauseFullscreenSizerClicked(wxCommandEvent &event);
@@ -98,6 +103,10 @@ private:
 
     wxCheckBox *_chkShowNotifications;
 
+    wxCheckBox *_chkWaterReminder;
+    wxComboBox *_selWaterInterval;
+    wxComboBox *_selWaterVolume;
+
     wxCheckBox *_chkMiniPauseFullscreenSizer;
 
     wxString GetInformation() const;
@@ -118,6 +127,9 @@ public:
     void SetCanCloseNotifications(bool value);
     void SetShowNotificationsEnabled(bool value);
     void SetMiniPauseFullscreenSizerEnabled(bool value);
+    void SetWaterReminderEnabled(bool value);
+    void SetWaterInterval(int value);
+    void SetWaterVolume(int value);
 
 private:
     bool GetBigPauseEnabled() const;
@@ -135,6 +147,9 @@ private:
     bool GetInactivityTrackingEnabled() const;
     bool GetShowNotificationsEnabled() const;
     bool GetMiniPauseFullscreenSizerEnabled() const;
+    bool GetWaterReminderEnabled() const;
+    int GetWaterInterval() const;
+    int GetWaterVolume() const;
 
     static bool inited;
 

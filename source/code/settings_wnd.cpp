@@ -32,6 +32,19 @@ wxString miniPauseDurationChoices[3] = {
 };
 int miniPauseDurationValues[] = {8, 15, 20}; // in seconds
 
+// The hydration reminder. The values match kWaterIntervalsMin and kWaterVolumesMl in main.h, and are
+// duplicated rather than shared because the boxes are filled with localised text and the setting
+// itself is a number; CheckSettings snaps anything that does not match onto the nearest entry.
+wxString waterIntervalChoices[8] = {
+    _(""),
+};
+int waterIntervalValues[] = {15, 20, 25, 30, 45, 60, 90, 120};
+
+wxString waterVolumeChoices[5] = {
+    _(""),
+};
+int waterVolumeValues[] = {50, 100, 150, 200, 250};
+
 bool SettingsWindow::inited = false;
 
 BEGIN_EVENT_TABLE(SettingsWindow, wxFrame)
@@ -66,6 +79,14 @@ SettingsWindow::SettingsWindow(const wxString &title)
 
         for (int i = 0; i < (sizeof(miniPauseDurationChoices) / sizeof(miniPauseDurationChoices[0])); i++)
             miniPauseDurationChoices[i] = langPack->Get(wxString::Format("settings_mini_pause_duration_value_%d", i + 1));
+
+        for (int i = 0; i < (sizeof(waterIntervalChoices) / sizeof(waterIntervalChoices[0])); i++)
+            waterIntervalChoices[i] =
+                langPack->Get(wxString::Format("settings_water_interval_value_%d", i + 1));
+
+        for (int i = 0; i < (sizeof(waterVolumeChoices) / sizeof(waterVolumeChoices[0])); i++)
+            waterVolumeChoices[i] =
+                langPack->Get(wxString::Format("settings_water_volume_value_%d", i + 1));
 
         SettingsWindow::inited = true;
     }
@@ -218,6 +239,55 @@ SettingsWindow::SettingsWindow(const wxString &title)
     _selMiniPauseInterval->SetToolTip(tooltip2_0);
     _chkMiniPauses->SetToolTip(tooltip2_1);
 
+    // The hydration reminder gets a group of its own rather than another line inside the breaks panel:
+    // it is not a break, and putting it among the two break checkboxes invited the reading that
+    // turning it on adds a third kind of break.
+    wxStaticBoxSizer *sizerWater = new wxStaticBoxSizer(wxVERTICAL, pageSettings,
+                                                        langPack->Get("settings_water_group_label"));
+    wxBoxSizer *sizerWaterRow = new wxBoxSizer(wxHORIZONTAL);
+    _chkWaterReminder = new wxCheckBox(pageSettings,
+                                       ID_SETTINGS_CHK_WATER_REMINDER,
+                                       langPack->Get("settings_water_reminder_label"),
+                                       wxDefaultPosition,
+                                       wxDefaultSize,
+                                       wxCHK_2STATE,
+                                       wxDefaultValidator,
+                                       _("chkWaterReminder"));
+    sizerWaterRow->Add(_chkWaterReminder, wxSizerFlags().Center().Border(wxALL, 3));
+
+    wxBoxSizer *sizerWaterOptions = new wxBoxSizer(wxHORIZONTAL);
+    _selWaterInterval = new wxComboBox(pageSettings,
+                                       ID_SETTINGS_SEL_WATER_INTERVAL,
+                                       wxEmptyString,
+                                       wxDefaultPosition,
+                                       wxDefaultSize,
+                                       sizeof(waterIntervalChoices) / sizeof(waterIntervalChoices[0]),
+                                       waterIntervalChoices,
+                                       wxCB_DROPDOWN | wxCB_READONLY,
+                                       wxDefaultValidator,
+                                       _("selWaterInterval"));
+    _selWaterVolume = new wxComboBox(pageSettings,
+                                     ID_SETTINGS_SEL_WATER_VOLUME,
+                                     wxEmptyString,
+                                     wxDefaultPosition,
+                                     wxDefaultSize,
+                                     sizeof(waterVolumeChoices) / sizeof(waterVolumeChoices[0]),
+                                     waterVolumeChoices,
+                                     wxCB_DROPDOWN | wxCB_READONLY,
+                                     wxDefaultValidator,
+                                     _("selWaterVolume"));
+    sizerWaterOptions->Add(new wxStaticText(pageSettings, wxID_ANY,
+                                            langPack->Get("settings_water_interval_label")),
+                           wxSizerFlags().Center());
+    sizerWaterOptions->Add(_selWaterInterval, wxSizerFlags().Center());
+    sizerWaterOptions->AddSpacer(10);
+    sizerWaterOptions->Add(new wxStaticText(pageSettings, wxID_ANY,
+                                            langPack->Get("settings_water_volume_label")),
+                           wxSizerFlags().Center());
+    sizerWaterOptions->Add(_selWaterVolume, wxSizerFlags().Center());
+    sizerWater->Add(sizerWaterRow, wxSizerFlags().Center());
+    sizerWater->Add(sizerWaterOptions, wxSizerFlags().Center().Border(wxBOTTOM, 4));
+
     imgIcon = new wxStaticBitmap(pageSettings, wxID_ANY, _iconSound);
     wxBoxSizer *sizerEnableSounds = new wxBoxSizer(wxHORIZONTAL);
     _chkEnableSounds = new wxCheckBox(pageSettings,
@@ -363,6 +433,7 @@ SettingsWindow::SettingsWindow(const wxString &title)
     sizerPanel->Add(sizerBigPauses, wxSizerFlags().Left().Border(wxALL, 4));
     sizerPanel->Add(sizerWarnPauses, wxSizerFlags().Left().Border(wxALL, 4));
     sizerPanel->Add(sizerMiniPauses, wxSizerFlags().Left().Border(wxALL, 4));
+    sizerPanel->Add(sizerWater, wxSizerFlags().Left().Border(wxALL, 4));
     sizerPanel->Add(sizerEnableSounds, wxSizerFlags().Left().Border(wxALL, 4));
     sizerPanel->Add(sizerEnableStrictMode, wxSizerFlags().Left().Border(wxALL, 4));
     sizerPanel->Add(sizerCanCloseNotifications, wxSizerFlags().Left().Border(wxALL, 4));
@@ -422,6 +493,7 @@ SettingsWindow::SettingsWindow(const wxString &title)
     Connect(ID_SETTINGS_CHK_BIG_PAUSES, wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler(SettingsWindow::OnBigPauseEnabledClicked));
     Connect(ID_SETTINGS_CHK_MINI_PAUSES, wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler(SettingsWindow::OnMiniPauseEnabledClicked));
     Connect(ID_SETTINGS_CHK_WARN_ABOUT_PAUSES, wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler(SettingsWindow::OnWarningEnabledClicked));
+    Connect(ID_SETTINGS_CHK_WATER_REMINDER, wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler(SettingsWindow::OnWaterReminderClicked));
     Connect(ID_SETTINGS_CHK_ENABLE_SOUNDS, wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler(SettingsWindow::OnSoundsEnabledClicked));
     Connect(ID_SETTINGS_CHK_ENABLE_STRICT_MODE, wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler(SettingsWindow::OnStrictModeEnabledClicked));
     Connect(ID_SETTINGS_CHK_CAN_CLOSE_NOTIFICATIONS, wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler(SettingsWindow::OnStrictModeEnabledClicked));
@@ -468,6 +540,14 @@ void SettingsWindow::OnMiniPauseEnabledClicked(wxCommandEvent &) {
 void SettingsWindow::OnWarningEnabledClicked(wxCommandEvent &) {
     bool value = _chkWarnPauses->GetValue();
     _selWarnPauseDelays->Enable(value);
+}
+
+void SettingsWindow::OnWaterReminderClicked(wxCommandEvent &) {
+    // Both choices go dead with the reminder, so it is obvious that they only mean something while it
+    // is on, rather than leaving live-looking controls that quietly do nothing.
+    bool on = _chkWaterReminder->GetValue();
+    _selWaterInterval->Enable(on);
+    _selWaterVolume->Enable(on);
 }
 
 void SettingsWindow::OnSoundsEnabledClicked(wxCommandEvent &) {
@@ -632,6 +712,49 @@ int SettingsWindow::GetMiniPauseDuration() const {
     return miniPauseDurationValues[sel];
 }
 
+void SettingsWindow::SetWaterReminderEnabled(bool value) {
+    _chkWaterReminder->SetValue(value);
+    _selWaterInterval->Enable(value);
+    _selWaterVolume->Enable(value);
+}
+
+void SettingsWindow::SetWaterInterval(int value) {
+    int size = sizeof(waterIntervalValues) / sizeof(waterIntervalValues[0]);
+    for (int i = 0; i < size; i++)
+        if (waterIntervalValues[i] == value) {
+            _selWaterInterval->SetSelection(i);
+            return;
+        }
+    // Not on the list: leave the box alone and let CheckSettings snap the stored value.
+}
+
+void SettingsWindow::SetWaterVolume(int value) {
+    int size = sizeof(waterVolumeValues) / sizeof(waterVolumeValues[0]);
+    for (int i = 0; i < size; i++)
+        if (waterVolumeValues[i] == value) {
+            _selWaterVolume->SetSelection(i);
+            return;
+        }
+}
+
+bool SettingsWindow::GetWaterReminderEnabled() const {
+    return _chkWaterReminder->GetValue();
+}
+
+int SettingsWindow::GetWaterInterval() const {
+    int sel = _selWaterInterval->GetCurrentSelection();
+    if (sel < 0)
+        sel = 0;
+    return waterIntervalValues[sel];
+}
+
+int SettingsWindow::GetWaterVolume() const {
+    int sel = _selWaterVolume->GetCurrentSelection();
+    if (sel < 0)
+        sel = 1;
+    return waterVolumeValues[sel];
+}
+
 bool SettingsWindow::GetWarningEnabled() const {
     return _chkWarnPauses->GetValue();
 }
@@ -685,6 +808,9 @@ void SettingsWindow::PullSettings() {
     SetInactivityTrackingEnabled(getApp()->GetInactivityTrackingEnabled());
     SetShowNotificationsEnabled(getApp()->GetShowNotificationsEnabled());
     SetMiniPauseFullscreenSizerEnabled(getApp()->GetMiniPauseFullscreenEnabled());
+    SetWaterReminderEnabled(getApp()->GetWaterReminderEnabled());
+    SetWaterInterval(getApp()->GetWaterInterval());
+    SetWaterVolume(getApp()->GetWaterVolume());
 }
 
 void SettingsWindow::PushSettings() {
@@ -703,6 +829,9 @@ void SettingsWindow::PushSettings() {
     getApp()->SetInactivityTrackingEnabled(GetInactivityTrackingEnabled());
     getApp()->SetShowNotificationsEnabled(GetShowNotificationsEnabled());
     getApp()->SetMiniPauseFullscreenEnabled(GetMiniPauseFullscreenSizerEnabled());
+    getApp()->SetWaterReminderEnabled(GetWaterReminderEnabled());
+    getApp()->SetWaterInterval(GetWaterInterval());
+    getApp()->SetWaterVolume(GetWaterVolume());
     getApp()->SaveSettings();
 }
 

@@ -24,6 +24,24 @@
 	<string id="settings_title" text="EyeLeo настройки" />
 	<string id="settings_settings_tab" text="Настройки" />
 	<string id="settings_information_tab" text="Информация" />
+	<string id="settings_water_group_label" text="Вода" />
+	<string id="settings_water_reminder_label" text="Напоминать попить" />
+	<string id="settings_water_interval_label" text="Каждые" />
+	<string id="settings_water_volume_label" text="Порция" />
+	<string id="settings_water_interval_value_1" text="15 минут" />
+	<string id="settings_water_interval_value_2" text="20 минут" />
+	<string id="settings_water_interval_value_3" text="25 минут" />
+	<string id="settings_water_interval_value_4" text="30 минут" />
+	<string id="settings_water_interval_value_5" text="45 минут" />
+	<string id="settings_water_interval_value_6" text="60 минут" />
+	<string id="settings_water_interval_value_7" text="90 минут" />
+	<string id="settings_water_interval_value_8" text="120 минут" />
+	<string id="settings_water_volume_value_1" text="50 мл" />
+	<string id="settings_water_volume_value_2" text="100 мл" />
+	<string id="settings_water_volume_value_3" text="150 мл" />
+	<string id="settings_water_volume_value_4" text="200 мл" />
+	<string id="settings_water_volume_value_5" text="250 мл" />
+	<string id="water_reminder_label" text="Попей воды" />
 	<string id="settings_general_panel_label" text="Общие" />
 	
 	<string id="settings_big_pause_label_1" text="Делать большой перерыв каждые" />

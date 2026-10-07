@@ -67,6 +67,8 @@ target_sources(EyeLeo PRIVATE
     ${SOURCE_FILES_FOLDER}/bigpause_wnd.h
     ${SOURCE_FILES_FOLDER}/debug_wnd.cpp
     ${SOURCE_FILES_FOLDER}/debug_wnd.h
+    ${SOURCE_FILES_FOLDER}/drink_wnd.cpp
+    ${SOURCE_FILES_FOLDER}/drink_wnd.h
     ${SOURCE_FILES_FOLDER}/excercises.cpp
     ${SOURCE_FILES_FOLDER}/excercises.h
     ${SOURCE_FILES_FOLDER}/image_resources.cpp

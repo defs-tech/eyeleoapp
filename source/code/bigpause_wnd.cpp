@@ -18,12 +18,27 @@ EVT_CLOSE(BigPauseWindow::OnClose)
 EVT_KILL_FOCUS(BigPauseWindow::OnKillFocus)
 END_EVENT_TABLE()
 
+// The long break cycles the full figure through four poses, two seconds each, so one sway takes
+// eight. Neutral appears twice, because the loop has to pass back through standing before it can lean
+// the other way. The figures are aligned on the feet and scaled on the calf, so the three frames share
+// a size and the window does not resize between them.
+static const EPersonageFrame kStretchCycle[4] = {
+    PF_STRETCH_NEUTRAL,
+    PF_STRETCH_LEFT,
+    PF_STRETCH_NEUTRAL,
+    PF_STRETCH_RIGHT,
+};
+
+static const long kStretchPhaseMs = 2000;
+
 BigPauseWindow::BigPauseWindow(int displayInd)
     : wxFrame(NULL, -1, L"", wxDefaultPosition, wxDefaultSize, wxFRAME_SHAPED | wxFRAME_NO_TASKBAR | wxSTAY_ON_TOP)
     , _preventClosing(true)
     , _breakTimeLeft(0)
     , _breakTimeFull(0)
     , _personageImg(0)
+    , _stretchPhase(0)
+    , _stretchMsLeft(0)
     , _timeText(0)
     , _restoreFocus(false)
     , _displayInd(displayInd)
@@ -50,6 +65,7 @@ void BigPauseWindow::Init() {
 
     _showing = true;
     _hiding = false;
+    _stretchPhase = 0;
     _alpha = 0.0f;
     _primary = _displayInd == osCaps.primaryDisplayInd;
 
@@ -66,7 +82,10 @@ void BigPauseWindow::Init() {
         wxBoxSizer *vsizer = new wxBoxSizer(wxVERTICAL);
         sizer->Add(vsizer, wxSizerFlags().Center());
 
-        _personageImg = new wxStaticBitmap(this, wxID_ANY, *g_Personage->Frame(PF_DEFAULT));
+        _stretchPhase = 0;
+        _stretchMsLeft = kStretchPhaseMs;
+        _personageImg =
+            new wxStaticBitmap(this, wxID_ANY, *g_Personage->Frame(PF_STRETCH_NEUTRAL));
         vsizer->Add(_personageImg, wxSizerFlags().Center());
         vsizer->AddSpacer(20);
 
@@ -166,6 +185,20 @@ void BigPauseWindow::ExecuteTask(float f, long wentMs) {
         if (_breakTimeLeft < 0)
             _breakTimeLeft = 0;
         UpdateTimeLabel();
+
+        // Null when the long break goes fullscreen: the portrait is only built on the primary display
+        // path, so the cycle has nothing to drive there.
+        if (_personageImg) {
+            _stretchMsLeft -= wentMs;
+            if (_stretchMsLeft <= 0) {
+                _stretchMsLeft += kStretchPhaseMs;
+                _stretchPhase =
+                    (_stretchPhase + 1) % (int)(sizeof(kStretchCycle) / sizeof(kStretchCycle[0]));
+                wxBitmap *frame = g_Personage->Frame(kStretchCycle[_stretchPhase]);
+                if (frame)
+                    _personageImg->SetBitmap(*frame);
+            }
+        }
 
         g_TaskMgr->AddTask(GetName(), 100);
         /*if (_restoreFocus)
