@@ -158,9 +158,9 @@ void TeaTimer::LoadConfig(const wxString &path) {
 void TeaTimer::SaveDefaultConfig(const wxString &path) const {
     // It lands beside settings.xml, whose directory exists by the time anything can be brewing, but
     // creating it keeps this usable on its own.
-    wxFileName name(path);
-    if (!wxFileName::DirExists(name.GetPath()))
-        wxFileName::Mkdir(name.GetPath(), 0700, wxPATH_MKDIR_FULL);
+    wxFileName fileName(path);
+    if (!wxFileName::DirExists(fileName.GetPath()))
+        wxFileName::Mkdir(fileName.GetPath(), 0700, wxPATH_MKDIR_FULL);
 
     // Deliberately ASCII only. Reading is UTF-8, so Russian names typed into this file work, but a file
     // the app writes itself must not depend on the machine's code page: wx 3.1.3 has no WriteAll with a
@@ -176,31 +176,31 @@ void TeaTimer::SaveDefaultConfig(const wxString &path) const {
     for (size_t i = 0; i < _schedules.size(); i++) {
         const TeaSchedule &s = _schedules[i];
         // The name written back has to be one KindFromName accepts, so the English spelling is used.
-        wxString name;
+        wxString teaName;
         switch (s.kind) {
         case DRINK_GREEN:
-            name = wxT("green");
+            teaName = wxT("green");
             break;
         case DRINK_WHITE:
-            name = wxT("white");
+            teaName = wxT("white");
             break;
         case DRINK_OOLONG:
-            name = wxT("oolong");
+            teaName = wxT("oolong");
             break;
         case DRINK_BLACK:
-            name = wxT("black");
+            teaName = wxT("black");
             break;
         case DRINK_PUER:
-            name = wxT("puer");
+            teaName = wxT("puer");
             break;
         case DRINK_HERBAL:
-            name = wxT("herbal");
+            teaName = wxT("herbal");
             break;
         default:
             continue;
         }
 
-        text += wxString::Format(wxT("%s, %.0f"), name, s.temperature);
+        text += wxString::Format(wxT("%s, %.0f"), teaName, s.temperature);
         for (int k = 0; k < s.count; k++)
             text += wxString::Format(wxT(", %d"), s.seconds[k]);
         text += wxT("\n");

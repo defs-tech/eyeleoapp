@@ -81,11 +81,18 @@ jobs:
           mkdir dist
           cd bin
           rem Not on PATH: bin/make_installer_*.bat calls it by absolute path, so the image does not
-          rem put it there. Output is kept in a file so a failure can be read without job log rights.
-          "C:\Program Files (x86)\NSIS\makensis.exe" /O..\dist /NOLOGO EyeLeo.nsi > ..\nsis.log 2>&1
+          rem put it there.
+          rem No /O here: makensis has no such option, it only understands /OUTFILE. Passed anyway it
+          rem reads as the start of /OUTFILE or /LOG and fails with a complaint about the log file,
+          rem which says nothing about the real cause. Each script's own OutFile decides the name, and
+          rem the result is moved afterwards.
+          rem Output is kept in a file so a failure can be read without job log rights.
+          "C:\Program Files (x86)\NSIS\makensis.exe" EyeLeo.nsi > ..\nsis.log 2>&1
           if errorlevel 1 exit /b 1
-          "C:\Program Files (x86)\NSIS\makensis.exe" /O..\dist /NOLOGO EyeLeo_ru.nsi >> ..\nsis.log 2>&1
+          "C:\Program Files (x86)\NSIS\makensis.exe" EyeLeo_ru.nsi >> ..\nsis.log 2>&1
           if errorlevel 1 exit /b 1
+          move /y EyeLeo_Installer_*.exe ..\dist\ > nul
+          dir ..\dist
           type ..\nsis.log
         shell: cmd
 
@@ -169,11 +176,16 @@ jobs:
             for (const name of ['build.log', 'nsis.log']) {
               if (!fs.existsSync(name)) continue;
               const log = fs.readFileSync(name, 'utf8');
-              const errors = log.split(/\r?\n/)
-                .filter(l => /\berror\s+[A-Z]+\d+|\bfatal error|\berror LNK|^Error|is not recognized|Usage: makensis/i.test(l))
-                .slice(0, 25);
+              // The compiler's output is filtered to its error lines; makensis writes its complaints as
+              // prose and the filter hid exactly the one that mattered, so its log goes in whole.
+              const lines = log.split(/\r?\n/).filter(l => l.trim());
+              const errors = name === 'nsis.log'
+                ? lines.slice(-60)
+                : log.split(/\r?\n/)
+                    .filter(l => /\berror\s+[A-Z]+\d+|\bfatal error|\berror LNK/i.test(l))
+                    .slice(0, 25);
               parts.push('#### ' + name + '\n\n```\n' +
-                (errors.length ? errors.join('\n') : log.split(/\r?\n/).slice(-25).join('\n')) + '\n```');
+                (errors.length ? errors.join('\n') : lines.slice(-25).join('\n')) + '\n```');
             }
             const body = parts.length ? parts.join('\n\n')
                                       : 'Сборка упала на шаге, вывод которого не попал в файл.';
