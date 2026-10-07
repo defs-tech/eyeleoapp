@@ -79,6 +79,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           mkdir dist
+          rem What the NSIS on this image actually ships, before guessing again about FindProcDLL.
+          dir /s /b "C:\Program Files (x86)\NSIS\Plugins" > nsis-plugins.txt 2>&1
           cd bin
           rem Not on PATH: bin/make_installer_*.bat calls it by absolute path, so the image does not
           rem put it there.
@@ -94,6 +96,8 @@ jobs:
           move /y EyeLeo_Installer_*.exe ..\dist\ > nul
           dir ..\dist
           type ..\nsis.log
+          echo === NSIS plugins on this image
+          type ..\nsis-plugins.txt
         shell: cmd
 
       - name: Upload the runnable app
