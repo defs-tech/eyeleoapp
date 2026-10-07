@@ -285,7 +285,11 @@ bool TeaTimer::Advance(long elapsedMs) {
 }
 
 bool TeaTimer::Pour() {
-    if (!_brewing || _finished || _awaiting)
+    // Refused while a steep is still running, and that is what _awaiting false means: Advance sets it
+    // once the countdown is spent and there is a next steep to start. The guard used to read the other
+    // way round, which refused exactly the state Pour exists to serve, so the menu item was enabled,
+    // clicked, and did nothing.
+    if (!_brewing || _finished || !_awaiting)
         return false;
     if (_steep + 1 >= _schedule->count)
         return false;
