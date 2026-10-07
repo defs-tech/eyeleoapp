@@ -70,29 +70,6 @@ jobs:
           path: build.log
           if-no-files-found: warn
 
-      # Publishing the compiler's errors as a commit comment, because that is the one place a reader
-      # without repository admin rights can reach: the job log endpoint answers 403 for them and the
-      # step summary is not exposed by the API at all, and an artifact needs authentication too. Only
-      # the error lines go up, so a failure is diagnosable from a plain fetch instead of only from the
-      # Actions page.
-      - name: Report the build errors on the commit
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const log = fs.readFileSync('build.log', 'utf8');
-            const errors = log.split(/\r?\n/)
-              .filter(l => /\berror\s+[A-Z]+\d+|\bfatal error|\berror LNK/i.test(l))
-              .slice(0, 40);
-            const body = errors.length ? errors.join('\n') : log.split(/\r?\n/).slice(-40).join('\n');
-            await github.rest.repos.createCommitComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              commit_sha: context.sha,
-              body: '### Ошибки сборки\n\n```\n' + body + '\n```'
-            });
-
       # The installers only when a tag is pushed. NSIS 3.10 is already on the image; NSIS 3 rather than
       # 2 is required because the uninstaller section uses the FindProcDLL plugin to notice a running
       # EyeLeo. makensis is invoked directly on the .nsi and not through bin/make_installer_*.bat: those
@@ -103,8 +80,13 @@ jobs:
         run: |
           mkdir dist
           cd bin
-          makensis.exe /O..\dist EyeLeo.nsi || exit /b 1
-          makensis.exe /O..\dist EyeLeo_ru.nsi || exit /b 1
+          rem Not on PATH: bin/make_installer_*.bat calls it by absolute path, so the image does not
+          rem put it there. Output is kept in a file so a failure can be read without job log rights.
+          "C:\Program Files (x86)\NSIS\makensis.exe" /O..\dist /NOLOGO EyeLeo.nsi > ..\nsis.log 2>&1
+          if errorlevel 1 exit /b 1
+          "C:\Program Files (x86)\NSIS\makensis.exe" /O..\dist /NOLOGO EyeLeo_ru.nsi >> ..\nsis.log 2>&1
+          if errorlevel 1 exit /b 1
+          type ..\nsis.log
         shell: cmd
 
       - name: Upload the runnable app
@@ -170,3 +152,34 @@ jobs:
               });
               core.info('published ' + assetName);
             }
+
+      # Last, so it also catches the installer step: the first version of this step ran before the
+      # installers were even attempted and therefore reported nothing when they were what failed.
+      #
+      # Published as a commit comment because that is the one place a reader without repository admin
+      # rights can reach: the job log endpoint answers 403 for them, the step summary is not exposed by
+      # the API at all, and downloading an artifact needs authentication too.
+      - name: Report the failure on the commit
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const parts = [];
+            for (const name of ['build.log', 'nsis.log']) {
+              if (!fs.existsSync(name)) continue;
+              const log = fs.readFileSync(name, 'utf8');
+              const errors = log.split(/\r?\n/)
+                .filter(l => /\berror\s+[A-Z]+\d+|\bfatal error|\berror LNK|^Error|is not recognized|Usage: makensis/i.test(l))
+                .slice(0, 25);
+              parts.push('#### ' + name + '\n\n```\n' +
+                (errors.length ? errors.join('\n') : log.split(/\r?\n/).slice(-25).join('\n')) + '\n```');
+            }
+            const body = parts.length ? parts.join('\n\n')
+                                      : 'Сборка упала на шаге, вывод которого не попал в файл.';
+            await github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: '### Ошибки сборки\n\n' + body
+            });
