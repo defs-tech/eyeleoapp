@@ -1,7 +1,12 @@
 name: Build EyeLeo
 
 on:
-  workflow_dispatch: 
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - feature/**
+  pull_request:
 
 jobs:
   build:
@@ -46,8 +51,13 @@ jobs:
           cmake --build windowsbuild --config Release
         shell: cmd
 
-      - name: Upload compiled executable
+      - name: Upload the runnable app
         uses: actions/upload-artifact@v4
         with:
           name: EyeLeo-Windows-App
-          path: windowsbuild/**/*.exe
+          # bin/, not the build directory: the POST_BUILD step already copies EyeLeo.exe and
+          # activity-monitor.dll there, and bin/ already holds Resources/, Personages/,
+          # Langpacks/ and config.xml. Every asset is loaded relative to the working directory,
+          # so bin/ is the whole runnable tree and the build directory is not.
+          path: bin/
+          if-no-files-found: error
