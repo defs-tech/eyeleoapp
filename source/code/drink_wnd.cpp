@@ -17,13 +17,14 @@ END_EVENT_TABLE()
 
 DrinkReminderWindow *DrinkReminderWindow::sInstance = 0;
 
-DrinkReminderWindow::DrinkReminderWindow(int drinkKind, const wxString &caption, long showForMs)
+DrinkReminderWindow::DrinkReminderWindow(int drinkKind, const wxString &caption, long autoDismissMs)
     : wxFrame(NULL, -1, L"", wxDefaultPosition, wxDefaultSize,
               wxFRAME_TOOL_WINDOW | wxFRAME_SHAPED | wxNO_BORDER | wxFRAME_NO_TASKBAR | wxSTAY_ON_TOP)
     , _state(STATE_SHOWING)
     , _drinkKind(drinkKind)
     , _caption(caption)
-    , _msLeft(showForMs)
+    , _autoDismissMs(autoDismissMs)
+    , _activeMsLeft(0)
     , _shownMsLeft(0)
     , _alpha(0.0f)
     , _preventClosing(true)
@@ -108,10 +109,12 @@ void DrinkReminderWindow::SetTimeLabel(long msLeft) {
 }
 
 void DrinkReminderWindow::SetAutoDismiss(long ms) {
-    // Only meaningful while it is up: a bubble still fading in would otherwise be handed a deadline it
-    // has not reached yet.
-    if (_state == STATE_ACTIVE)
-        _msLeft = ms;
+    _autoDismissMs = ms;
+    // The deadline starts when the bubble finishes fading in, so a caller that arms it during the fade
+    // still gets the full time. Forcing it to take effect at once here would have been the alternative,
+    // and it is wrong: the tea timer arms the dismissal the moment it creates the window, which is
+    // exactly while the window is still fading in.
+    _activeMsLeft = (ms > 0 && _state == STATE_ACTIVE) ? ms : 0;
 }
 
 void DrinkReminderWindow::SetCaption(const wxString &caption) {
@@ -127,6 +130,7 @@ void DrinkReminderWindow::ExecuteTask(float f, long time_went) {
         if (_alpha >= 210.0f) {
             _alpha = 210.0f;
             _state = STATE_ACTIVE;
+            _activeMsLeft = _autoDismissMs;
             UpdateTimeLabel();
             g_TaskMgr->AddTask(GetName(), 100);
         } else {
@@ -141,10 +145,10 @@ void DrinkReminderWindow::ExecuteTask(float f, long time_went) {
         _shownMsLeft -= time_went;
         UpdateTimeLabel();
 
-        if (_msLeft > 0) {
-            _msLeft -= time_went;
-            if (_msLeft <= 0) {
-                _msLeft = 0;
+        if (_activeMsLeft > 0) {
+            _activeMsLeft -= time_went;
+            if (_activeMsLeft <= 0) {
+                _activeMsLeft = 0;
                 _state = STATE_HIDING;
                 g_TaskMgr->AddTask(GetName(), 20);
             } else {
@@ -197,7 +201,7 @@ bool DrinkReminderWindow::Hide() {
         return false;
 
     _state = STATE_HIDING;
-    _msLeft = 0;
+    _activeMsLeft = 0;
     g_TaskMgr->AddTask(GetName(), 20);
     return true;
 }

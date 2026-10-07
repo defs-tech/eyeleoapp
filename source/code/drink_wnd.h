@@ -63,8 +63,12 @@ private:
     int _drinkKind;
     wxString _caption;
 
-    long _msLeft;       // until it closes itself, or <= 0 when it stays until hidden
-    long _shownMsLeft;  // what the countdown on screen is counting
+    // Two different clocks, which is the point of the split: _autoDismissMs is how long the bubble
+    // stays once it is up, and _shownMsLeft is what the number on screen counts. The tea timer needs
+    // a bubble that stays put while its countdown runs down to the next pour.
+    long _autoDismissMs; // 0 means stay until something hides it
+    long _activeMsLeft;  // only counts while the bubble is up and dismissing
+    long _shownMsLeft;   // what the countdown on screen is counting
     float _alpha;
     bool _preventClosing;
 

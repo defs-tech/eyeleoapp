@@ -3,9 +3,9 @@
 
 #include "image_resources.h"
 
-#include <vector>
+#include <wx/string.h>
 
-class wxString;
+#include <vector>
 
 // One tea's steeping schedule. seconds are in seconds, and there is a hard ceiling of eight per tea
 // because that is the longest shipped schedule (pu-erh); the parser will not read more.
