@@ -87,13 +87,7 @@ jobs:
           rem which says nothing about the real cause. Each script's own OutFile decides the name, and
           rem the result is moved afterwards.
           rem Output is kept in a file so a failure can be read without job log rights.
-          rem The plugin listing goes into nsis.log itself and first, so it survives the exit below:
-          rem printed after makensis it was skipped every time makensis aborted, which is the only time
-          rem it was wanted.
-          echo === NSIS plugins on this image > ..\nsis.log
-          dir /s /b "C:\Program Files (x86)\NSIS\Plugins" >> ..\nsis.log 2>&1
-          echo. >> ..\nsis.log
-          "C:\Program Files (x86)\NSIS\makensis.exe" EyeLeo.nsi >> ..\nsis.log 2>&1
+          "C:\Program Files (x86)\NSIS\makensis.exe" EyeLeo.nsi > ..\nsis.log 2>&1
           if errorlevel 1 exit /b 1
           "C:\Program Files (x86)\NSIS\makensis.exe" EyeLeo_ru.nsi >> ..\nsis.log 2>&1
           if errorlevel 1 exit /b 1

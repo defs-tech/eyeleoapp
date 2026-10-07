@@ -1,4 +1,6 @@
 !include "MUI2.nsh"
+!include "LogicLib.nsh"
+!include "StrFunc.nsh"
 ShowInstDetails show
 
 !define APPNAME "EyeLeo"
@@ -160,12 +162,21 @@ FunctionEnd
 ; Uninstaller
 
 Section "Uninstall"
-  ; Close active instance
-  FindProcDLL::FindProc "EyeLeo.exe"
-  IntCmp $R0 1 0 notRunning
+  ; Close active instance.
+  ; This used to be FindProcDLL::FindProc, and that plugin no longer exists in NSIS 3.10: neither
+  ; x86-ansi nor x86-unicode on the build image contains it, so makensis aborts the whole script
+  ; with "Plugin not found". tasklist answers the same question, and nsExec is shipped with NSIS,
+  ; so nothing has to be vendored in to keep this check.
+  ; /NH suppresses the header row, so a name that is not found yields no output at all.
+  nsExec::ExecToStack '"$SYSDIR\tasklist.exe" /NH /FI "IMAGENAME eq EyeLeo.exe"'
+  Pop $0
+  Pop $1
+  ${If} $0 == 0
+  ${AndIf} $1 != ""
+  ${AndIf} ${WordFind} $1 "EyeLeo.exe" != ""
       MessageBox MB_OK|MB_ICONEXCLAMATION "EyeLeo is running. Please close the application before uninstalling." /SD IDOK
       Abort
-  notRunning:
+  ${EndIf}
   
   ; Remove registry keys
   DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}"
