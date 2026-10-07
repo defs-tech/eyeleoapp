@@ -162,12 +162,16 @@ void TeaTimer::SaveDefaultConfig(const wxString &path) const {
     if (!wxFileName::DirExists(name.GetPath()))
         wxFileName::Mkdir(name.GetPath(), 0700, wxPATH_MKDIR_FULL);
 
+    // Deliberately ASCII only. Reading is UTF-8, so Russian names typed into this file work, but a file
+    // the app writes itself must not depend on the machine's code page: wx 3.1.3 has no WriteAll with a
+    // conversion, and the plain Write converts through the locale, which on a non-UTF-8 system would
+    // mangle anything above ASCII. Nothing here needs a non-ASCII character.
     wxString text;
     text += wxT("# Steeping schedules, one tea per line:\n");
     text += wxT("#   name, temperature in C, then the seconds for each steep\n");
     text += wxT("# Names are accepted in English or Russian, case does not matter.\n");
     text += wxT("# Water has no schedule: it is a drink, not something you steep.\n");
-    text += wxT("# Change a line and restart EyeLeo; anything unreadable falls back to the values here.\n");
+    text += wxT("# Change a line and restart EyeLeo. Anything unreadable falls back to the values here.\n");
 
     for (size_t i = 0; i < _schedules.size(); i++) {
         const TeaSchedule &s = _schedules[i];
@@ -203,7 +207,7 @@ void TeaTimer::SaveDefaultConfig(const wxString &path) const {
     }
 
     wxFFile out(path, "wb");
-    if (!out.IsOpened() || !out.WriteAll(text, wxConvUTF8))
+    if (!out.IsOpened() || !out.Write(text))
         logging::msg("tea.conf could not be written; the built-in schedules stay in use");
 }
 
