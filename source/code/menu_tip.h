@@ -20,7 +20,7 @@
 //
 // MenuItemFromPoint takes the menu handle itself rather than a window handle, so no menu window has to
 // be hunted down or subclassed. While the menu is tracked a timer asks Windows which item is under the
-// cursor and moves a tooltip onto it. Polling is heavier than subclassing the menu window would be, but
+// cursor and points a tooltip at it. Polling is heavier than subclassing the menu window would be, but
 // nothing here is in a position to corrupt the tracking of the menu itself, which is the part worth
 // protecting.
 class MenuItemTip : public wxEvtHandler {
@@ -33,16 +33,16 @@ public:
     void SetItemText(int cmdId, const wxString &text);
 
     // Starts watching a menu that is about to be shown, and stops again once it has gone. mainMenu is
-    // the menu itself and subMenu the one holding the items worth a tip, which may be a popup of its
-    // own rather than part of mainMenu.
+    // the menu itself and subMenu the one holding the items worth a tip, which may be a popup of its own
+    // rather than part of mainMenu.
     void Start(HMENU mainMenu, HMENU subMenu);
     void Stop();
 
 private:
     void OnTick(wxTimerEvent &event);
-    int HoveredCommandId();
-    void Show(int cmdId, const wxString &text);
-    void Hide();
+    bool HoveredItem(HMENU &menuOut, int &indexOut);
+    void AttachTool(HMENU menu, int index, int cmdId, const wxString &text);
+    void DetachTool();
 
     std::map<int, wxString> _texts;
     wxTimer _timer;
@@ -50,7 +50,7 @@ private:
     HMENU _subMenu;
     HWND _tipWnd;
     int _shownCmdId;
-    int _ticksIdle;
+    bool _toolAdded;
     bool _logged;
 };
 
