@@ -1777,8 +1777,10 @@ void EyeTaskBarIcon::OnTakeLongBreakNow(wxCommandEvent &) {
 }
 
 void EyeTaskBarIcon::OnPourNextSteep(wxCommandEvent &) {
+    // No menu refresh here on purpose. The tray menu is built from scratch on every right click, since
+    // CreatePopupMenu allocates a fresh one each time it is called, so the pour countdown and the tea
+    // check mark are never stale by the time the user looks at them.
     getApp()->PourNextSteep();
-    RecreatePopupMenu();
 }
 
 void EyeTaskBarIcon::OnStartTea(wxCommandEvent &event) {
@@ -1791,7 +1793,6 @@ void EyeTaskBarIcon::OnStartTea(wxCommandEvent &event) {
         return;
 
     getApp()->StartTea(kTeas[index]);
-    RecreatePopupMenu();
 }
 
 void EyeTaskBarIcon::OnQuit(wxCommandEvent &) {

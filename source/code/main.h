@@ -371,8 +371,6 @@ public:
     void OnLeftButtonDown(/*wxTaskBarIconEvent*/ wxMouseEvent &);
 
 private:
-    void RecreatePopupMenu();
-
     wxMenu *_menu;
 
     wxIcon *_icon;
