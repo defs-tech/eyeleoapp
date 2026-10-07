@@ -3,8 +3,8 @@
 #include "logging.h"
 
 #include <wx/arrstr.h>
+#include <wx/ffile.h>
 #include <wx/file.h>
-#include <wx/filefn.h>
 #include <wx/string.h>
 
 // The shipped schedules. Green and white are short and stepped, oolong and black longer, pu-erh longest
@@ -75,10 +75,12 @@ void TeaTimer::LoadConfig(const wxString &path) {
     }
 
     wxString text;
-    // Read as UTF-8, so a file written on any platform comes in the same way. ReadFile rather than
-    // wxFFile so nothing depends on which wx header pulls in which piece of the file API.
-    if (!wxFile::ReadFile(path, &text, wxConvUTF8) || text.IsEmpty()) {
-        logging::msg("tea.conf is empty or not valid UTF-8, using the built-in schedules");
+    // Read as UTF-8, so a file written on any platform comes in the same way. wxFFile for the reading
+    // and wxFile for the existence check, because those are the two halves that wx 3.1.3 actually has:
+    // there is no static wxFile::ReadFile there, and wxFFile::ReadAll takes the destination first.
+    wxFFile file(path, "rb");
+    if (!file.IsOpened() || !file.ReadAll(&text, wxConvUTF8) || text.IsEmpty()) {
+        logging::msg("tea.conf could not be read as UTF-8, using the built-in schedules");
         return;
     }
 
