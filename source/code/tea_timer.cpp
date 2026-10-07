@@ -3,9 +3,8 @@
 #include "logging.h"
 
 #include <wx/arrstr.h>
-#include <wx/filefn.h>
 #include <wx/ffile.h>
-#include <wx/file.h>
+#include <wx/filename.h>
 #include <wx/string.h>
 
 // The shipped schedules. Green and white are short and stepped, oolong and black longer, pu-erh longest
@@ -70,19 +69,17 @@ void TeaTimer::LoadConfig(const wxString &path) {
     // behind.
     ResetToDefaults();
 
-    if (!wxFile::Exists(path)) {
+    // wxFFile does all of it: opening for reading doubles as the existence test, so wxFile is not
+    // needed at all. Read as UTF-8, so a file written on any platform comes in the same way.
+    wxString text;
+    wxFFile file(path, "rb");
+    if (!file.IsOpened()) {
         logging::msg("tea.conf not present, using the built-in schedules and writing them out");
         SaveDefaultConfig(path);
         return;
     }
-
-    wxString text;
-    // Read as UTF-8, so a file written on any platform comes in the same way. wxFFile for the reading
-    // and wxFile for the existence check, because those are the two halves that wx 3.1.3 actually has:
-    // there is no static wxFile::ReadFile there, and wxFFile::ReadAll takes the destination first.
-    wxFFile file(path, "rb");
-    if (!file.IsOpened() || !file.ReadAll(&text, wxConvUTF8) || text.IsEmpty()) {
-        logging::msg("tea.conf could not be read as UTF-8, using the built-in schedules");
+    if (!file.ReadAll(&text, wxConvUTF8) || text.IsEmpty()) {
+        logging::msg("tea.conf is empty or not valid UTF-8, using the built-in schedules");
         return;
     }
 
@@ -159,8 +156,11 @@ void TeaTimer::LoadConfig(const wxString &path) {
 }
 
 void TeaTimer::SaveDefaultConfig(const wxString &path) const {
-    if (!wxFileName::DirExists(wxFileName(path).GetPath()))
-        wxFileName::Mkdir(wxFileName(path).GetPath(), 0700, wxPATH_MKDIR_FULL);
+    // It lands beside settings.xml, whose directory exists by the time anything can be brewing, but
+    // creating it keeps this usable on its own.
+    wxFileName name(path);
+    if (!wxFileName::DirExists(name.GetPath()))
+        wxFileName::Mkdir(name.GetPath(), 0700, wxPATH_MKDIR_FULL);
 
     wxString text;
     text += wxT("# Steeping schedules, one tea per line:\n");
@@ -202,7 +202,8 @@ void TeaTimer::SaveDefaultConfig(const wxString &path) const {
         text += wxT("\n");
     }
 
-    if (!wxFile::WriteFile(path, text, wxConvUTF8))
+    wxFFile out(path, "wb");
+    if (!out.IsOpened() || !out.WriteAll(text, wxConvUTF8))
         logging::msg("tea.conf could not be written; the built-in schedules stay in use");
 }
 
