@@ -3,6 +3,7 @@
 #include "logging.h"
 
 #include <wx/display.h>
+#include <wx/sizer.h>
 #include <wx/stattext.h>
 
 // Short enough to feel attached to the cursor. The menu is tracked on one modal loop, and this timer has to
@@ -18,6 +19,9 @@ static const int kTicksBeforeShow = 3;
 // it is explaining.
 static const int kOffsetX = 18;
 static const int kOffsetY = 24;
+
+// Space between the text and the edge of the tip.
+static const int kPadding = 4;
 
 static const wxColour kBg(32, 33, 34);
 static const wxColour kFg(255, 255, 255);
@@ -163,11 +167,20 @@ void MenuItemTip::Show(int cmdId, const wxString &text) {
         _label->SetBackgroundColour(kBg);
         _label->SetForegroundColour(kFg);
         _wnd->SetBackgroundColour(kBg);
+
+        // A sizer, not a bare Fit(). Fit() asks the window for its best size, and a plain wxWindow with a
+        // child and no sizer does not add that child up: the window came out 2 by 0, which is very much a
+        // window that exists and is not seen. The sizer is what gives the label a vote in the size.
+        wxSizer *sizer = new wxBoxSizer(wxHORIZONTAL);
+        sizer->Add(_label, 1, wxEXPAND | wxALL, kPadding);
+        _wnd->SetSizer(sizer);
     } else {
         _label->SetLabel(text);
     }
 
-    // _wnd sized around its only child, so the border ends up exactly around the text.
+    // Laid out before measuring: a sizer only recomputes when something asks it to, and the size read
+    // further down has to be the one the sizer actually produced.
+    _wnd->Layout();
     _wnd->Fit();
 
     // Four extended styles, and each one is about not getting in the way. Read as Win32 constants rather
@@ -212,8 +225,11 @@ void MenuItemTip::Show(int cmdId, const wxString &text) {
 
     if (!_logged) {
         _logged = true;
-        logging::msg(wxString::Format(L"menu hint: command %d, at %d,%d %dx%d, visible=%d, text: %s", cmdId, x, y,
-                                       size.GetWidth(), size.GetHeight(), (int)_wnd->IsShown(), text));
+        wxSize labelSize = _label->GetSize();
+        logging::msg(wxString::Format(
+            L"menu hint: command %d, at %d,%d %dx%d, label %dx%d, visible=%d, text: %s", cmdId, x, y,
+            size.GetWidth(), size.GetHeight(), labelSize.GetWidth(), labelSize.GetHeight(),
+            (int)_wnd->IsShown(), text));
     }
 }
 
