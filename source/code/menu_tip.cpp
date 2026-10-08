@@ -3,7 +3,6 @@
 #include "logging.h"
 
 #include <wx/display.h>
-#include <wx/sizer.h>
 #include <wx/stattext.h>
 
 // Short enough to feel attached to the cursor. The menu is tracked on one modal loop, and this timer has to
@@ -22,6 +21,11 @@ static const int kOffsetY = 24;
 
 // Space between the text and the edge of the tip.
 static const int kPadding = 4;
+
+// A tip is a box around one line of text. Anything outside this is not a box around a line of text, and
+// showing it would put a window of an incomprehensible size on screen instead.
+static const int kMinHintSize = 20;
+static const int kMaxHintSize = 1200;
 
 static const wxColour kBg(32, 33, 34);
 static const wxColour kFg(255, 255, 255);
@@ -167,21 +171,30 @@ void MenuItemTip::Show(int cmdId, const wxString &text) {
         _label->SetBackgroundColour(kBg);
         _label->SetForegroundColour(kFg);
         _wnd->SetBackgroundColour(kBg);
-
-        // A sizer, not a bare Fit(). Fit() asks the window for its best size, and a plain wxWindow with a
-        // child and no sizer does not add that child up: the window came out 2 by 0, which is very much a
-        // window that exists and is not seen. The sizer is what gives the label a vote in the size.
-        wxSizer *sizer = new wxBoxSizer(wxHORIZONTAL);
-        sizer->Add(_label, 1, wxEXPAND | wxALL, kPadding);
-        _wnd->SetSizer(sizer);
     } else {
         _label->SetLabel(text);
     }
 
-    // Laid out before measuring: a sizer only recomputes when something asks it to, and the size read
-    // further down has to be the one the sizer actually produced.
-    _wnd->Layout();
-    _wnd->Fit();
+    // Sized here and not by asking a window to size itself. Both ways of asking produced a number rather
+    // than a size: Fit() on a window with no sizer left the child out and came out 2 by 0, and a sizer
+    // whose child carried a proportion of one, laid out before the window had any size at all, came out
+    // 1232399200 wide. The label knows how wide its own text is, so it is asked directly and the window is
+    // sized from that and nothing else.
+    wxSize text = _label->GetBestSize();
+    int width = text.GetWidth() + 2 * kPadding;
+    int height = text.GetHeight() + 2 * kPadding;
+
+    // Checked, because a number like the one above is not a window anybody can see, and quietly creating
+    // it again would put the same mystery back in the log. Better to say it and show nothing.
+    if (width < kMinHintSize || width > kMaxHintSize || height < kMinHintSize || height > kMaxHintSize) {
+        logging::msg(wxString::Format(L"menu hint: label asked for %dx%d, which is not a tip; nothing shown",
+                                       text.GetWidth(), text.GetHeight()));
+        return;
+    }
+
+    _label->SetPosition(wxPoint(kPadding, kPadding));
+    _label->SetSize(text);
+    _wnd->SetSize(width, height);
 
     // Four extended styles, and each one is about not getting in the way. Read as Win32 constants rather
     // than the wxWS_EX_ names because wxWidgets 3.1.3 has no such names, and these have been in winuser.h
@@ -195,7 +208,6 @@ void MenuItemTip::Show(int cmdId, const wxString &text) {
     ex |= WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
     ::SetWindowLong(hwnd, GWL_EXSTYLE, ex);
 
-    wxSize size = _wnd->GetSize();
     int x = pt.x + kOffsetX;
     int y = pt.y + kOffsetY;
 
@@ -208,10 +220,10 @@ void MenuItemTip::Show(int cmdId, const wxString &text) {
         wxDisplay display((unsigned int)displayIndex);
         if (display.IsOk()) {
             wxRect area = display.GetClientArea();
-            if (x + size.GetWidth() > area.GetRight())
-                x = area.GetRight() - size.GetWidth();
-            if (y + size.GetHeight() > area.GetBottom())
-                y = pt.y - size.GetHeight() - kOffsetY;
+            if (x + width > area.GetRight())
+                x = area.GetRight() - width;
+            if (y + height > area.GetBottom())
+                y = pt.y - height - kOffsetY;
             if (x < area.GetLeft())
                 x = area.GetLeft();
             if (y < area.GetTop())
@@ -221,15 +233,15 @@ void MenuItemTip::Show(int cmdId, const wxString &text) {
 
     // Positioned and shown here rather than through wx, because a wx call that shows a window is the one
     // thing that would take the focus the menu is holding. SWP_NOACTIVATE says so explicitly.
-    ::SetWindowPos(hwnd, HWND_TOPMOST, x, y, size.GetWidth(), size.GetHeight(), SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    ::SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
 
     if (!_logged) {
         _logged = true;
-        wxSize labelSize = _label->GetSize();
+        // Three sizes and a position, separately. With one number for everything it was never possible to
+        // tell which step produced the bad one, and that cost a build.
         logging::msg(wxString::Format(
-            L"menu hint: command %d, at %d,%d %dx%d, label %dx%d, visible=%d, text: %s", cmdId, x, y,
-            size.GetWidth(), size.GetHeight(), labelSize.GetWidth(), labelSize.GetHeight(),
-            (int)_wnd->IsShown(), text));
+            L"menu hint: command %d, label best %dx%d, window %dx%d, at %d,%d, visible=%d, text: %s", cmdId,
+            text.GetWidth(), text.GetHeight(), width, height, x, y, (int)_wnd->IsShown(), text));
     }
 }
 

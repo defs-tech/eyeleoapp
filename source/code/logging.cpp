@@ -58,6 +58,11 @@ void Init() {
         if (size > 1024 * 1024 * 3) // remove the log, if's larger than 3 megs
         {
             wxRemoveFile(GetSavePath() + L"log.txt");
+
+            // Said out loud, because a log that suddenly turns up nearly empty looks exactly like logging
+            // having been turned down or broken, and that is a bad afternoon to spend. The file really did
+            // grow past three megabytes and really was deleted on purpose.
+            msg(wxString::Format(L"logging: log.txt was %ld bytes, over the 3 MB limit, and has been removed", size));
         }
     }
 }
