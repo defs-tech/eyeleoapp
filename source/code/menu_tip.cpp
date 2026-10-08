@@ -5,6 +5,8 @@
 #include <wx/display.h>
 #include <wx/stattext.h>
 
+#include <wx/dc.h>
+
 // Short enough to feel attached to the cursor. The menu is tracked on one modal loop, and this timer has to
 // be running inside that loop for any of it to happen, so it is the loop's tick rate that decides how
 // quickly a tip can react, not this interval alone.
@@ -14,8 +16,7 @@ static const int kTickMs = 120;
 // tip that appeared and vanished at every crossing would be noise rather than help.
 static const int kTicksBeforeShow = 3;
 
-// Offsets from the pointer, so the tip never sits under the thing that summoned it and never covers the item
-// it is explaining.
+// Offsets from the pointer, so the tip never sits under the thing that summoned it.
 static const int kOffsetX = 18;
 static const int kOffsetY = 24;
 
@@ -29,6 +30,26 @@ static const int kMaxHintSize = 1200;
 
 static const wxColour kBg(32, 33, 34);
 static const wxColour kFg(255, 255, 255);
+
+// The window procedure this one replaced, kept so that everything except the hit test is handled exactly as
+// it was. One tip exists at a time, so one saved procedure is enough.
+static WNDPROC g_prevWndProc = 0;
+
+// The tip never takes the mouse.
+//
+// It sits a little below and to the right of the pointer, which puts it over the item below the one being
+// read. Clicking that item has to reach the menu, so the hit test says the window is not there at all.
+// WS_EX_TRANSPARENT was here first and did nothing of the kind: it changes painting order, and letting
+// clicks pass through a top level window is WS_EX_LAYERED's job, which would mean a layered window.
+static LRESULT CALLBACK HintWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (msg == WM_NCHITTEST)
+        return HTTRANSPARENT;
+
+    if (g_prevWndProc)
+        return ::CallWindowProc(g_prevWndProc, hwnd, msg, wParam, lParam);
+
+    return ::DefWindowProc(hwnd, msg, wParam, lParam);
+}
 
 MenuItemTip::MenuItemTip()
     : _mainMenu(NULL)
@@ -76,6 +97,11 @@ void MenuItemTip::Stop() {
         _label = NULL; // owned by _wnd and gone with it
     }
 
+    // g_prevWndProc is deliberately left alone. Destroy() only queues the window for destruction, so ours is
+    // still installed and still handling messages for a moment; clearing the procedure it delegates to now
+    // would mean those messages went to DefWindowProc and bypassed wx entirely. It is overwritten at the
+    // next install, before anything can read it.
+
     _mainMenu = NULL;
     _subMenu = NULL;
     _hoverCmdId = 0;
@@ -122,10 +148,14 @@ void MenuItemTip::OnTick(wxTimerEvent &WXUNUSED(event)) {
     if (++_ticksIdle < kTicksBeforeShow)
         return;
 
-    if (_shownCmdId != cmdId) {
+    if (_shownCmdId == cmdId)
+        return;
+
+    // Only marked as shown if it really appeared. Marking it before the attempt, and not clearing it when
+    // the attempt failed, meant that one refused attempt ended the tip for that item until the pointer left
+    // and came back.
+    if (Show(cmdId, _texts[cmdId]))
         _shownCmdId = cmdId;
-        Show(cmdId, _texts[cmdId]);
-    }
 }
 
 bool MenuItemTip::HoveredItem(HMENU &menuOut, int &indexOut) {
@@ -155,17 +185,35 @@ bool MenuItemTip::HoveredItem(HMENU &menuOut, int &indexOut) {
     return false;
 }
 
-void MenuItemTip::Show(int cmdId, const wxString &text) {
+bool MenuItemTip::Show(int cmdId, const wxString &text) {
     POINT pt;
     if (!::GetCursorPos(&pt))
-        return;
+        return false;
 
     if (!_wnd) {
         _wnd = new wxWindow(NULL, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_SIMPLE);
-        if (!_wnd) {
-            logging::msg("menu hint: window not created");
-            return;
+        if (!_wnd)
+            return false;
+
+        HWND hwnd = _wnd->GetHandle();
+        if (!hwnd) {
+            // The object exists but nothing does on screen to put on it. Worth saying, because every
+            // message after this point would otherwise talk about a window that does not exist.
+            logging::msg(wxString::Format(L"menu hint: command %d, window has no native handle", cmdId));
+            return false;
         }
+
+        // Before the window is ever shown, because that is when WS_EX_NOACTIVATE has to be in place.
+        // WS_EX_TOPMOST: a tip drawn behind the menu is a tip nobody sees.
+        // WS_EX_NOACTIVATE: it must not take the focus the menu is holding, however it comes up.
+        // WS_EX_TOOLWINDOW: stay out of the taskbar and out of Alt+Tab, where a menu tip does not belong.
+        LONG ex = ::GetWindowLong(hwnd, GWL_EXSTYLE);
+        ex |= WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
+        ::SetWindowLong(hwnd, GWL_EXSTYLE, ex);
+
+        g_prevWndProc = reinterpret_cast<WNDPROC>(
+            ::SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(HintWndProc)));
+
         _label = new wxStaticText(_wnd, wxID_ANY, text);
         _label->SetBackgroundStyle(wxBG_STYLE_COLOUR);
         _label->SetBackgroundColour(kBg);
@@ -175,38 +223,31 @@ void MenuItemTip::Show(int cmdId, const wxString &text) {
         _label->SetLabel(text);
     }
 
-    // Sized here and not by asking a window to size itself. Both ways of asking produced a number rather
-    // than a size: Fit() on a window with no sizer left the child out and came out 2 by 0, and a sizer
-    // whose child carried a proportion of one, laid out before the window had any size at all, came out
-    // 1232399200 wide. The label knows how wide its own text is, so it is asked directly and the window is
-    // sized from that and nothing else.
-    wxSize textSize = _label->GetBestSize();
+    // Measured off the label's own device context rather than asked of the control. GetBestSize() returns
+    // whatever the control has measured so far, and the first time it is asked, before it has laid itself
+    // out at all, it answers 0 by 16: no width at all, with a perfectly good height.
+    wxSize textSize;
+    {
+        wxDC dc(_label);
+        textSize = dc.GetTextExtent(text);
+    }
+
     int width = textSize.GetWidth() + 2 * kPadding;
     int height = textSize.GetHeight() + 2 * kPadding;
 
-    // Checked, because a number like the one above is not a window anybody can see, and quietly creating
-    // it again would put the same mystery back in the log. Better to say it and show nothing.
+    // Checked, because a number no tip could be is not worth putting on screen, and quietly creating one
+    // again would put the same mystery back in the log.
     if (width < kMinHintSize || width > kMaxHintSize || height < kMinHintSize || height > kMaxHintSize) {
-        logging::msg(wxString::Format(L"menu hint: label asked for %dx%d, which is not a tip; nothing shown",
-                                       textSize.GetWidth(), textSize.GetHeight()));
-        return;
+        logging::msg(wxString::Format(L"menu hint: command %d, text measures %dx%d, which is no hint; nothing shown",
+                                       cmdId, textSize.GetWidth(), textSize.GetHeight()));
+        return false;
     }
 
     _label->SetPosition(wxPoint(kPadding, kPadding));
     _label->SetSize(textSize);
     _wnd->SetSize(width, height);
 
-    // Four extended styles, and each one is about not getting in the way. Read as Win32 constants rather
-    // than the wxWS_EX_ names because wxWidgets 3.1.3 has no such names, and these have been in winuser.h
-    // since well before any of this.
     HWND hwnd = _wnd->GetHandle();
-    LONG ex = ::GetWindowLong(hwnd, GWL_EXSTYLE);
-    // WS_EX_TOPMOST: a tip drawn behind the menu is a tip nobody sees.
-    // WS_EX_TRANSPARENT: clicks pass straight through to the menu, which is still tracking the pointer.
-    // WS_EX_NOACTIVATE: never take focus, which would take the menu's away with it.
-    // WS_EX_TOOLWINDOW: stay out of the taskbar and out of Alt+Tab, where a menu tip does not belong.
-    ex |= WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
-    ::SetWindowLong(hwnd, GWL_EXSTYLE, ex);
 
     int x = pt.x + kOffsetX;
     int y = pt.y + kOffsetY;
@@ -231,23 +272,42 @@ void MenuItemTip::Show(int cmdId, const wxString &text) {
         }
     }
 
-    // Positioned and shown here rather than through wx, because a wx call that shows a window is the one
-    // thing that would take the focus the menu is holding. SWP_NOACTIVATE says so explicitly.
-    ::SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    // ShowWindow, and nothing else. This is the whole reason this hint has its own code rather than
+    // wxWindow::Show(): wx sets m_isShown to true when a window is constructed, and wxWindowMSW::Show()
+    // begins by calling wxWindowBase::Show(), which returns without touching the window when the flag
+    // already says what was asked for. So the first Show() on a fresh window does nothing at all. The
+    // underlying HWND is meanwhile created without WS_VISIBLE, so nobody is showing it. Asking the window
+    // manager directly is the one thing here that cannot be argued with.
+    ::ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+    // Placed after being shown, and shown no more: the size asked for is then the size it has.
+    ::SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE);
+
+    // What the window manager thinks, not what wx believes. Everything earlier in this log was wx's own
+    // opinion, and wx's opinion on this subject is worth nothing: it calls a window shown that was never
+    // shown.
+    RECT actual;
+    ::GetWindowRect(hwnd, &actual);
+    LONG styles = ::GetWindowLong(hwnd, GWL_EXSTYLE);
 
     if (!_logged) {
         _logged = true;
-        // Three sizes and a position, separately. With one number for everything it was never possible to
-        // tell which step produced the bad one, and that cost a build.
         logging::msg(wxString::Format(
-            L"menu hint: command %d, label best %dx%d, window %dx%d, at %d,%d, visible=%d, text: %s", cmdId,
-            textSize.GetWidth(), textSize.GetHeight(), width, height, x, y, (int)_wnd->IsShown(), text));
+            L"menu hint: command %d, asked %dx%d at %d,%d, visible=%d, actual %d,%d %dx%d, ex=0x%lx, text: %s",
+            cmdId, width, height, x, y, (int)::IsWindowVisible(hwnd), actual.left, actual.top,
+            actual.right - actual.left, actual.bottom - actual.top, (unsigned long)styles, text));
     }
+
+    return ::IsWindowVisible(hwnd) != FALSE;
 }
 
 void MenuItemTip::Hide() {
-    if (_shownCmdId && _wnd)
-        _wnd->Hide();
+    if (_wnd) {
+        HWND hwnd = _wnd->GetHandle();
+        // Straight past wx again, for the same reason as showing: wxWindowBase::Show(false) only changes
+        // the flag and, if the flag already said false, does not even do that.
+        if (hwnd)
+            ::ShowWindow(hwnd, SW_HIDE);
+    }
 
     _shownCmdId = 0;
     _hoverCmdId = 0;

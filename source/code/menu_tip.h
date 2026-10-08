@@ -46,7 +46,7 @@ public:
 private:
     void OnTick(wxTimerEvent &event);
     bool HoveredItem(HMENU &menuOut, int &indexOut);
-    void Show(int cmdId, const wxString &text);
+    bool Show(int cmdId, const wxString &text);
     void Hide();
 
     std::map<int, wxString> _texts;
@@ -54,8 +54,8 @@ private:
     HMENU _mainMenu;
     HMENU _subMenu;
 
-    // Both created on the first tip and destroyed when the menu closes, so nothing is ever left on screen
-    // between two menus. _label is a child of _wnd; wx sizes _wnd around it with Fit.
+    // Created on the first tip and destroyed when the menu closes, so nothing is ever left on screen
+    // between two menus. _label is a child of _wnd.
     class wxWindow *_wnd;
     class wxStaticText *_label;
 
