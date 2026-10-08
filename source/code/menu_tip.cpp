@@ -180,20 +180,20 @@ void MenuItemTip::Show(int cmdId, const wxString &text) {
     // whose child carried a proportion of one, laid out before the window had any size at all, came out
     // 1232399200 wide. The label knows how wide its own text is, so it is asked directly and the window is
     // sized from that and nothing else.
-    wxSize text = _label->GetBestSize();
-    int width = text.GetWidth() + 2 * kPadding;
-    int height = text.GetHeight() + 2 * kPadding;
+    wxSize textSize = _label->GetBestSize();
+    int width = textSize.GetWidth() + 2 * kPadding;
+    int height = textSize.GetHeight() + 2 * kPadding;
 
     // Checked, because a number like the one above is not a window anybody can see, and quietly creating
     // it again would put the same mystery back in the log. Better to say it and show nothing.
     if (width < kMinHintSize || width > kMaxHintSize || height < kMinHintSize || height > kMaxHintSize) {
         logging::msg(wxString::Format(L"menu hint: label asked for %dx%d, which is not a tip; nothing shown",
-                                       text.GetWidth(), text.GetHeight()));
+                                       textSize.GetWidth(), textSize.GetHeight()));
         return;
     }
 
     _label->SetPosition(wxPoint(kPadding, kPadding));
-    _label->SetSize(text);
+    _label->SetSize(textSize);
     _wnd->SetSize(width, height);
 
     // Four extended styles, and each one is about not getting in the way. Read as Win32 constants rather
@@ -241,7 +241,7 @@ void MenuItemTip::Show(int cmdId, const wxString &text) {
         // tell which step produced the bad one, and that cost a build.
         logging::msg(wxString::Format(
             L"menu hint: command %d, label best %dx%d, window %dx%d, at %d,%d, visible=%d, text: %s", cmdId,
-            text.GetWidth(), text.GetHeight(), width, height, x, y, (int)_wnd->IsShown(), text));
+            textSize.GetWidth(), textSize.GetHeight(), width, height, x, y, (int)_wnd->IsShown(), text));
     }
 }
 
