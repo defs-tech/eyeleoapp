@@ -1,5 +1,6 @@
 #include "logging.h"
 #include <stdarg.h>
+#include <string.h>
 #include <wx/filefn.h>
 #ifdef WIN32
 #include "shlobj.h"
@@ -69,7 +70,16 @@ void msg(wxString const &msg) {
 #endif
 
     if (logFile) {
-        fwrite((const char *)msg.mb_str(wxConvUTF8), 1, msg.size(), logFile);
+        // The count passed to fwrite has to be a count of bytes, and wxString::size() is a count of
+        // characters. Every Cyrillic character is two bytes in UTF-8, so using it here cut the tail off
+        // every line that contained any, which is most of them in a Russian log: "по 10, 15, 20, 25, 30"
+        // came out as "по 10, 15, 20". It did not just look wrong, it made the log useless for working out
+        // what the program had actually done. The length is taken from the converted string instead.
+        wxCharBuffer utf8 = msg.mb_str(wxConvUTF8);
+        // Checked as a pointer rather than as the buffer, because wxCharBuffer has no operator bool; it
+        // only converts implicitly to const char *, which would make if(utf8) work without saying so.
+        if (utf8.data())
+            fwrite(utf8.data(), 1, strlen(utf8.data()), logFile);
         fwrite("\n", 1, 1, logFile);
 
         fclose(logFile);
