@@ -5,7 +5,7 @@
 #include <wx/display.h>
 #include <wx/stattext.h>
 
-#include <wx/dc.h>
+#include <wx/dcclient.h>
 
 // Short enough to feel attached to the cursor. The menu is tracked on one modal loop, and this timer has to
 // be running inside that loop for any of it to happen, so it is the loop's tick rate that decides how
@@ -228,7 +228,9 @@ bool MenuItemTip::Show(int cmdId, const wxString &text) {
     // out at all, it answers 0 by 16: no width at all, with a perfectly good height.
     wxSize textSize;
     {
-        wxDC dc(_label);
+        // A client DC of the label, so the measurement uses that control's own font. wxDC itself takes no
+        // window; wxClientDC is the class that does.
+        wxClientDC dc(_label);
         textSize = dc.GetTextExtent(text);
     }
 
