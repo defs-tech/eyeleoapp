@@ -13,7 +13,7 @@
 	<string id="tb_menu_take_break_now" text="Сделать перерыв сейчас" />
 	
 	<string id="tea_caption_steep" text="Пролив %1$d из %2$d&#10;%3$.0f°C" />
-	<string id="tea_caption_ready" text="Цикл&#10;заваривания&#10;закончен" />
+	<string id="tea_caption_ready" text="Цикл&#10;проливов&#10;завершен" />
 	<string id="tb_menu_pour" text="Пролив" />
 	<string id="tb_menu_pour_fmt" text="Пролив (%d с)" />
 	<string id="tb_menu_new_tea" text="Новый чай" />

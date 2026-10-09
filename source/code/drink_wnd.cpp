@@ -223,9 +223,9 @@ void DrinkReminderWindow::HideCountdown() {
     // going away, which reads as a countdown of something nobody asked about. mac shows no number there.
     _hideCountdown = true;
     // With no number under it, the caption has the bubble to itself, and it is handed the whole column
-    // rather than the top half of it. The cycle notice is three lines and a font of 11 wants about 42
-    // points for them, so the 32 it is given for the two-line steep caption would shave the third line
-    // off the bottom. Centred in a taller box it stands in the middle of the bubble instead.
+    // rather than the top half of it. The text would fit in the half either way; what changes is where
+    // it sits. Left in the top half it would stand above an empty 22 points, which reads as a number
+    // that failed to appear, and centred in the full column it stands in the middle of the bubble.
     ApplyCaptionLayout(true);
     UpdateTimeLabel();
 }

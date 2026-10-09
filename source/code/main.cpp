@@ -595,8 +595,8 @@ void EyeApp::TickTea(long elapsedMs) {
 wxString EyeApp::TeaReadyCaption() {
     // Not "the tea is ready": by the time this is reached the last steep has been poured and nothing
     // more is coming out of the leaves, so the brewing cycle is over rather than anything ready. The
-    // tea's name left the text along with the claim, which is what let the notice fit in three lines,
-    // one word each.
+    // tea's name left the text along with the claim, and what is left is short enough to break over
+    // two lines rather than run off the side of the bubble.
     return langPack->Get("tea_caption_ready");
 }
 
