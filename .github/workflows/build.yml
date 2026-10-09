@@ -107,9 +107,11 @@ jobs:
           path: bin/
           if-no-files-found: error
 
-      # Publishing runs on the automatic GITHUB_TOKEN, so no personal token is involved. A release is
-      # created for the tag if it is not there yet and reused otherwise, so re-pushing a tag does not
-      # fail on an existing release.
+      # Publishing runs on the automatic GITHUB_TOKEN, so no personal token is involved. The notes come
+      # from a file in the repository, one per tag, and a tag with no file of its own fails rather than
+      # publishing another version's text. A release that is already there has its body brought up to
+      # that file as well as its assets replaced, so moving a tag to a later commit publishes a release
+      # that matches the commit it points at instead of new assets under old notes.
       - name: Publish the release
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/github-script@v7
@@ -119,37 +121,33 @@ jobs:
             const path = require('path');
             const { owner, repo } = context.repo;
             const tag = context.ref.replace('refs/tags/', '');
-            const notes = [
-              'Windows build of EyeLeo, the macOS port feature set brought back to the original.',
-              '',
-              'Compared with 1.3.6:',
-              '',
-              '- Exercises 8, 9 and 10 added; exercise 7 now animates.',
-              '- The neck and shoulders exercise uses two drawn frames instead of two moved layers.',
-              '- The long break cycles a full figure through four poses.',
-              '- A hydration reminder, and a tea timer with manual steeps.',
-              '- Russian plural forms are fixed past one hundred.',
-              '',
-              'Tea schedules live in tea.conf. The copy in the install folder is a template: on the',
-              'first run EyeLeo copies it to %APPDATA%\\EyeLeo\\tea.conf, and that copy is the one it',
-              'reads and the one to edit. Settings sit beside it in the same folder.',
-              '',
-              'Attention: the assets are loaded relative to the working directory, so the program must',
-              'be started from its own folder.',
-            ].join('\n');
 
-            let release;
+            // Held in this script rather than in the repository, these notes would be the same text for
+            // every version ever tagged, including the parts that only make sense for one of them: a
+            // version saying it is closed, or naming the version the work continues in. The file is
+            // named for the tag it belongs to and is read from the commit being published.
+            const notesPath = path.join('docs', 'release-notes', tag + '.md');
+            if (!fs.existsSync(notesPath))
+              throw new Error('no release notes for ' + tag + ': expected ' + notesPath);
+            const notes = fs.readFileSync(notesPath, 'utf8').trim();
+
+            let current = null;
             try {
-              release = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+              current = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
             } catch (err) {
               if (err.status !== 404) throw err;
-              release = await github.rest.repos.createRelease({
-                owner, repo, tag_name: tag,
-                name: 'EyeLeo ' + tag.replace(/^v/, ''),
-                body: notes,
-                draft: false, prerelease: false,
-              });
             }
+
+            const release = current
+              ? await github.rest.repos.updateRelease({
+                  owner, repo, release_id: current.data.id, body: notes,
+                })
+              : await github.rest.repos.createRelease({
+                  owner, repo, tag_name: tag,
+                  name: 'EyeLeo ' + tag.replace(/^v/, ''),
+                  body: notes,
+                  draft: false, prerelease: false,
+                });
 
             const files = fs.readdirSync('dist').filter(f => !fs.statSync(path.join('dist', f)).isDirectory());
             for (const f of files) {
