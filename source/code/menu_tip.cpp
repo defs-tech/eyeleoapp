@@ -2,10 +2,7 @@
 
 #include "logging.h"
 
-#include <wx/display.h>
-#include <wx/stattext.h>
-
-#include <wx/dcclient.h>
+#include <string>
 
 // Short enough to feel attached to the cursor. The menu is tracked on one modal loop, and this timer has to
 // be running inside that loop for any of it to happen, so it is the loop's tick rate that decides how
@@ -23,39 +20,122 @@ static const int kOffsetY = 24;
 // Space between the text and the edge of the tip.
 static const int kPadding = 4;
 
-// A tip is a box around one line of text. Anything outside this is not a box around a line of text, and
-// showing it would put a window of an incomprehensible size on screen instead.
+// A tip is a box around one line of text. Anything outside this is not a box around a line of text.
 static const int kMinHintSize = 20;
 static const int kMaxHintSize = 1200;
 
-static const wxColour kBg(32, 33, 34);
-static const wxColour kFg(255, 255, 255);
+// The same dark grey the long break and the drink reminder are drawn on, so the tip belongs to the same
+// family as the rest of what this program puts on screen.
+static const COLORREF kBgColour = RGB(32, 33, 34);
+static const COLORREF kFgColour = RGB(255, 255, 255);
 
-// The window procedure this one replaced, kept so that everything except the hit test is handled exactly as
-// it was. One tip exists at a time, so one saved procedure is enough.
-static WNDPROC g_prevWndProc = 0;
+static const wchar_t *const kHintClassName = L"EyeLeoTeaHint";
 
-// The tip never takes the mouse.
+// Made once, when the first tip window paints, and destroyed with the last one. One window exists at a
+// time, so one brush does.
+static HBRUSH g_hintBrush = 0;
+
+// Four messages, and everything else belongs to Windows.
 //
-// It sits a little below and to the right of the pointer, which puts it over the item below the one being
-// read. Clicking that item has to reach the menu, so the hit test says the window is not there at all.
-// WS_EX_TRANSPARENT was here first and did nothing of the kind: it changes painting order, and letting
-// clicks pass through a top level window is WS_EX_LAYERED's job, which would mean a layered window.
+// WM_PAINT draws the whole window, which is why WM_ERASEBKGND refuses to: painting every pixel here means
+// there is nothing left to erase and nothing to flicker between.
+// WM_NCHITTEST says the window is not there at all as far as the mouse is concerned. The tip sits a little
+// below and to the right of the pointer, which puts it over the item below the one being read, and clicking
+// that item has to reach the menu.
+// WM_MOUSEACTIVATE hands the click back, so a tip can never take the menu's mouse.
 static LRESULT CALLBACK HintWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    if (msg == WM_NCHITTEST)
+    switch (msg) {
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC dc = ::BeginPaint(hwnd, &ps);
+        if (dc) {
+            if (!g_hintBrush)
+                g_hintBrush = ::CreateSolidBrush(kBgColour);
+
+            RECT rc;
+            ::GetClientRect(hwnd, &rc);
+            if (g_hintBrush)
+                ::FillRect(dc, &rc, g_hintBrush);
+
+            // The text is read back off the window rather than kept in a variable alongside it, so there is
+            // one copy of it and no chance of drawing something other than what was set.
+            int length = ::GetWindowTextLengthW(hwnd);
+            std::wstring text;
+            if (length > 0) {
+                text.resize((size_t)length + 1);
+                int got = ::GetWindowTextW(hwnd, &text[0], (int)text.size());
+                text.resize(got > 0 ? (size_t)got : 0);
+            }
+
+            if (!text.empty()) {
+                HFONT font = (HFONT)::SendMessage(hwnd, WM_GETFONT, 0, 0);
+                HGDIOBJ oldFont = font ? (HGDIOBJ)::SelectObject(dc, font) : 0;
+                ::SetBkMode(dc, TRANSPARENT);
+                ::SetTextColor(dc, kFgColour);
+                ::DrawTextW(dc, text.c_str(), (int)text.size(), &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                if (oldFont)
+                    ::SelectObject(dc, oldFont);
+            }
+        }
+        ::EndPaint(hwnd, &ps);
+        return 0;
+    }
+
+    case WM_ERASEBKGND:
+        return 1;
+
+    case WM_NCHITTEST:
         return HTTRANSPARENT;
 
-    if (g_prevWndProc)
-        return ::CallWindowProc(g_prevWndProc, hwnd, msg, wParam, lParam);
+    case WM_MOUSEACTIVATE:
+        return MA_NOACTIVATE;
 
-    return ::DefWindowProc(hwnd, msg, wParam, lParam);
+    case WM_NCDESTROY:
+        if (g_hintBrush) {
+            ::DeleteObject(g_hintBrush);
+            g_hintBrush = 0;
+        }
+        break;
+
+    default:
+        break;
+    }
+
+    return ::DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+
+// Registered once for the life of the process. Only zero really means trouble, because it is only ever
+// asked for once, so the "class already exists" case cannot come up and needs no allowance.
+static bool EnsureHintClass() {
+    static bool tried = false;
+    static bool registered = false;
+
+    if (tried)
+        return registered;
+    tried = true;
+
+    WNDCLASSEX wc;
+    ::ZeroMemory(&wc, sizeof(wc));
+    wc.cbSize = sizeof(wc);
+    wc.style = CS_HREDRAW | CS_VREDRAW;
+    wc.lpfnWndProc = HintWndProc;
+    wc.hInstance = ::GetModuleHandle(NULL);
+    wc.hCursor = ::LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = 0; // every pixel is painted in WM_PAINT
+    wc.lpszClassName = kHintClassName;
+
+    registered = ::RegisterClassExW(&wc) != 0;
+    if (!registered)
+        logging::msg(wxString::Format(L"menu hint: window class not registered, error %d", (int)::GetLastError()));
+
+    return registered;
 }
 
 MenuItemTip::MenuItemTip()
     : _mainMenu(NULL)
     , _subMenu(NULL)
-    , _wnd(NULL)
-    , _label(NULL)
+    , _hwnd(NULL)
+    , _font(NULL)
     , _hoverCmdId(0)
     , _shownCmdId(0)
     , _ticksIdle(0)
@@ -82,6 +162,23 @@ void MenuItemTip::Start(HMENU mainMenu, HMENU subMenu) {
     if (!_mainMenu)
         return;
 
+    // Here, and not lazily during the menu: Start() runs before the menu is tracked, and creating a window
+    // inside that modal loop is the one thing that failed before. One window per menu, made while the
+    // pointer is still on the tray icon, and reused for the whole time the menu is up.
+    if (EnsureHintClass()) {
+        _hwnd = ::CreateWindowExW(WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW, kHintClassName, L"", WS_POPUP,
+                                  0, 0, 1, 1, NULL, NULL, ::GetModuleHandle(NULL), NULL);
+        if (_hwnd) {
+            _font = (HFONT)::GetStockObject(DEFAULT_GUI_FONT);
+            ::SendMessage(_hwnd, WM_SETFONT, (WPARAM)_font, TRUE);
+        }
+    }
+
+    // The one number that settles whether this approach is any different from the last: a real window, made
+    // before the menu opened.
+    logging::msg(wxString::Format(L"menu hint: window created before the menu, handle %p, error %d", (void *)_hwnd,
+                                   (int)::GetLastError()));
+
     _hoverCmdId = 0;
     _ticksIdle = 0;
     _logged = false;
@@ -91,16 +188,11 @@ void MenuItemTip::Start(HMENU mainMenu, HMENU subMenu) {
 void MenuItemTip::Stop() {
     _timer.Stop();
 
-    if (_wnd) {
-        _wnd->Destroy();
-        _wnd = NULL;
-        _label = NULL; // owned by _wnd and gone with it
+    if (_hwnd) {
+        ::DestroyWindow(_hwnd);
+        _hwnd = NULL;
     }
-
-    // g_prevWndProc is deliberately left alone. Destroy() only queues the window for destruction, so ours is
-    // still installed and still handling messages for a moment; clearing the procedure it delegates to now
-    // would mean those messages went to DefWindowProc and bypassed wx entirely. It is overwritten at the
-    // next install, before anything can read it.
+    _font = NULL;
 
     _mainMenu = NULL;
     _subMenu = NULL;
@@ -190,126 +282,95 @@ bool MenuItemTip::Show(int cmdId, const wxString &text) {
     if (!::GetCursorPos(&pt))
         return false;
 
-    if (!_wnd) {
-        _wnd = new wxWindow(NULL, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_SIMPLE);
-        if (!_wnd)
-            return false;
-
-        HWND hwnd = _wnd->GetHandle();
-        if (!hwnd) {
-            // The object exists but nothing does on screen to put on it. Worth saying, because every
-            // message after this point would otherwise talk about a window that does not exist.
-            logging::msg(wxString::Format(L"menu hint: command %d, window has no native handle", cmdId));
-            return false;
-        }
-
-        // Before the window is ever shown, because that is when WS_EX_NOACTIVATE has to be in place.
-        // WS_EX_TOPMOST: a tip drawn behind the menu is a tip nobody sees.
-        // WS_EX_NOACTIVATE: it must not take the focus the menu is holding, however it comes up.
-        // WS_EX_TOOLWINDOW: stay out of the taskbar and out of Alt+Tab, where a menu tip does not belong.
-        LONG ex = ::GetWindowLong(hwnd, GWL_EXSTYLE);
-        ex |= WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
-        ::SetWindowLong(hwnd, GWL_EXSTYLE, ex);
-
-        g_prevWndProc = reinterpret_cast<WNDPROC>(
-            ::SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(HintWndProc)));
-
-        _label = new wxStaticText(_wnd, wxID_ANY, text);
-        _label->SetBackgroundStyle(wxBG_STYLE_COLOUR);
-        _label->SetBackgroundColour(kBg);
-        _label->SetForegroundColour(kFg);
-        _wnd->SetBackgroundColour(kBg);
-    } else {
-        _label->SetLabel(text);
-    }
-
-    // Measured off the label's own device context rather than asked of the control. GetBestSize() returns
-    // whatever the control has measured so far, and the first time it is asked, before it has laid itself
-    // out at all, it answers 0 by 16: no width at all, with a perfectly good height.
-    wxSize textSize;
-    {
-        // A client DC of the label, so the measurement uses that control's own font. wxDC itself takes no
-        // window; wxClientDC is the class that does.
-        wxClientDC dc(_label);
-        textSize = dc.GetTextExtent(text);
-    }
-
-    int width = textSize.GetWidth() + 2 * kPadding;
-    int height = textSize.GetHeight() + 2 * kPadding;
-
-    // Checked, because a number no tip could be is not worth putting on screen, and quietly creating one
-    // again would put the same mystery back in the log.
-    if (width < kMinHintSize || width > kMaxHintSize || height < kMinHintSize || height > kMaxHintSize) {
-        logging::msg(wxString::Format(L"menu hint: command %d, text measures %dx%d, which is no hint; nothing shown",
-                                       cmdId, textSize.GetWidth(), textSize.GetHeight()));
+    if (!_hwnd) {
+        // Can only happen if window creation failed back in Start(), and then the log already said so.
         return false;
     }
 
-    _label->SetPosition(wxPoint(kPadding, kPadding));
-    _label->SetSize(textSize);
-    _wnd->SetSize(width, height);
+    const wxChar *chars = text.wc_str();
+    std::wstring wtext(chars, (size_t)text.length());
 
-    HWND hwnd = _wnd->GetHandle();
+    // Measured under the very font the window draws with, so the two can never disagree about how wide the
+    // text is. Asked of GDI rather than of a control, which is what produced a width of zero last time.
+    int textWidth = 0;
+    int textHeight = 0;
+    HDC dc = ::GetDC(_hwnd);
+    if (dc) {
+        HGDIOBJ oldFont = _font ? (HGDIOBJ)::SelectObject(dc, _font) : 0;
+        ::GetTextExtentPoint32W(dc, wtext.c_str(), (int)wtext.size(), &textWidth, &textHeight);
+        if (oldFont)
+            ::SelectObject(dc, oldFont);
+        ::ReleaseDC(_hwnd, dc);
+    }
+
+    if (textWidth <= 0 || textHeight <= 0) {
+        logging::msg(wxString::Format(L"menu hint: command %d, GDI measured %dx%d, which is no hint; nothing shown",
+                                       cmdId, textWidth, textHeight));
+        return false;
+    }
+
+    int width = textWidth + 2 * kPadding;
+    int height = textHeight + 2 * kPadding;
+
+    if (width < kMinHintSize || width > kMaxHintSize || height < kMinHintSize || height > kMaxHintSize) {
+        logging::msg(wxString::Format(L"menu hint: command %d, tip would be %dx%d, which is no tip; nothing shown",
+                                       cmdId, width, height));
+        return false;
+    }
+
+    // Set before showing, so the first paint of the window has its text in it already.
+    ::SetWindowTextW(_hwnd, wtext.c_str());
 
     int x = pt.x + kOffsetX;
     int y = pt.y + kOffsetY;
 
     // Held inside the work area of the display the pointer is on. Without that the tip goes wherever the
     // arithmetic puts it, which on a second monitor to the right or below is nowhere near the menu that
-    // asked for it. In wxWidgets 3.1.3 the display is built by constructor rather than by a static Get(),
-    // and GetFromPoint hands back an index or wxNOT_FOUND.
-    int displayIndex = wxDisplay::GetFromPoint(wxPoint(pt.x, pt.y));
-    if (displayIndex != wxNOT_FOUND) {
-        wxDisplay display((unsigned int)displayIndex);
-        if (display.IsOk()) {
-            wxRect area = display.GetClientArea();
-            if (x + width > area.GetRight())
-                x = area.GetRight() - width;
-            if (y + height > area.GetBottom())
+    // asked for it.
+    HWND monitor = ::MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
+    if (monitor) {
+        MONITORINFO info;
+        ::ZeroMemory(&info, sizeof(info));
+        info.cbSize = sizeof(info);
+        if (::GetMonitorInfoW(monitor, &info)) {
+            RECT area = info.rcWork;
+            if (x + width > area.right)
+                x = area.right - width;
+            if (y + height > area.bottom)
                 y = pt.y - height - kOffsetY;
-            if (x < area.GetLeft())
-                x = area.GetLeft();
-            if (y < area.GetTop())
-                y = area.GetTop();
+            if (x < area.left)
+                x = area.left;
+            if (y < area.top)
+                y = area.top;
         }
     }
 
-    // ShowWindow, and nothing else. This is the whole reason this hint has its own code rather than
-    // wxWindow::Show(): wx sets m_isShown to true when a window is constructed, and wxWindowMSW::Show()
-    // begins by calling wxWindowBase::Show(), which returns without touching the window when the flag
-    // already says what was asked for. So the first Show() on a fresh window does nothing at all. The
-    // underlying HWND is meanwhile created without WS_VISIBLE, so nobody is showing it. Asking the window
-    // manager directly is the one thing here that cannot be argued with.
-    ::ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-    // Placed after being shown, and shown no more: the size asked for is then the size it has.
-    ::SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE);
+    // Shown without activating, because the menu holds the focus and this is not going to take it. Then
+    // placed, with the size that was measured for this exact text.
+    ::ShowWindow(_hwnd, SW_SHOWNOACTIVATE);
+    ::SetWindowPos(_hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE);
 
-    // What the window manager thinks, not what wx believes. Everything earlier in this log was wx's own
-    // opinion, and wx's opinion on this subject is worth nothing: it calls a window shown that was never
-    // shown.
+    // What the window manager thinks, since that is the only opinion here worth anything. The first
+    // wxWindow that stood in for this reported itself as not shown on every occasion, which was its own
+    // answer and not Windows'.
     RECT actual;
-    ::GetWindowRect(hwnd, &actual);
-    LONG styles = ::GetWindowLong(hwnd, GWL_EXSTYLE);
+    ::ZeroMemory(&actual, sizeof(actual));
+    ::GetWindowRect(_hwnd, &actual);
 
     if (!_logged) {
         _logged = true;
         logging::msg(wxString::Format(
-            L"menu hint: command %d, asked %dx%d at %d,%d, visible=%d, actual %d,%d %dx%d, ex=0x%lx, text: %s",
-            cmdId, width, height, x, y, (int)::IsWindowVisible(hwnd), actual.left, actual.top,
-            actual.right - actual.left, actual.bottom - actual.top, (unsigned long)styles, text));
+            L"menu hint: command %d, text %dx%d, asked %dx%d at %d,%d, visible=%d, actual %d,%d %dx%d, text: %s",
+            cmdId, textWidth, textHeight, width, height, x, y, (int)::IsWindowVisible(_hwnd), actual.left,
+            actual.top, actual.right - actual.left, actual.bottom - actual.top, text));
     }
 
-    return ::IsWindowVisible(hwnd) != FALSE;
+    return ::IsWindowVisible(_hwnd) != FALSE;
 }
 
 void MenuItemTip::Hide() {
-    if (_wnd) {
-        HWND hwnd = _wnd->GetHandle();
-        // Straight past wx again, for the same reason as showing: wxWindowBase::Show(false) only changes
-        // the flag and, if the flag already said false, does not even do that.
-        if (hwnd)
-            ::ShowWindow(hwnd, SW_HIDE);
-    }
+    if (_hwnd)
+        ::ShowWindow(_hwnd, SW_HIDE);
 
     _shownCmdId = 0;
     _hoverCmdId = 0;

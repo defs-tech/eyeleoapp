@@ -102,6 +102,7 @@ target_sources(EyeLeo PRIVATE
 if(WIN32)
     target_link_libraries(EyeLeo PRIVATE
         comctl32.lib
+        gdi32.lib
         winmm.lib
         rpcrt4.lib
         Wtsapi32.lib)

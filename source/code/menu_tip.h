@@ -17,17 +17,15 @@
 // 3.3.3 alike, so this is not a thing to wait for a newer wxWidgets about, and the scheme of a tea had
 // nowhere in the menu to go but the item's own label.
 //
-// The tooltip control Windows offers was tried first and is not used here. Registering a tool with it works
-// exactly as it should: TTM_ADDTOOL succeeds, the control reports the tool back through
-// TTM_GETTOOLCOUNT, the item rectangle is right and the pointer is relayed to it on every tick. It simply
-// never draws anything, and the reason is not in anything this code controls. So the tip is drawn here
-// instead. The item under the pointer is already found reliably through MenuItemFromPoint, and the rest is
-// a label, which wx paints without asking anyone's permission.
+// Two earlier attempts are not used here. Windows' own tooltip control takes the tool, reports it back and
+// never draws anything, for reasons that are not in anything this code controls. And a wxWindow standing in
+// for the tip came back from GetHandle() with no native window at all, which crashed the app the first time
+// that half-built object was used again.
 //
-// MenuItemFromPoint takes the menu handle itself rather than a window handle, so no menu window has to be
-// hunted down or subclassed. Polling from a timer is heavier than subclassing the menu window would be,
-// but nothing here is in a position to disturb the tracking of the menu itself, which is the part worth
-// protecting.
+// So the window is neither of those: a plain Win32 window, created once before the menu opens, measuring
+// and drawing its own text with GDI, and asked which item the pointer is over through MenuItemFromPoint,
+// which takes a menu handle rather than a window handle and so needs no menu window found or subclassed.
+// What is left in contact with wxWidgets is only the timer and the string.
 class MenuItemTip : public wxEvtHandler {
 public:
     MenuItemTip();
@@ -54,10 +52,10 @@ private:
     HMENU _mainMenu;
     HMENU _subMenu;
 
-    // Created on the first tip and destroyed when the menu closes, so nothing is ever left on screen
-    // between two menus. _label is a child of _wnd.
-    class wxWindow *_wnd;
-    class wxStaticText *_label;
+    // Created in Start(), before the menu is tracked, and destroyed in Stop(). Never created while a menu
+    // is up, which is the one circumstance under which window creation had failed.
+    HWND _hwnd;
+    HFONT _font;
 
     int _hoverCmdId; // tea under the pointer, 0 for none
     int _shownCmdId; // tea the visible tip belongs to, 0 for none
