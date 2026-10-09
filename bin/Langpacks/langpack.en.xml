@@ -13,7 +13,7 @@
 	<string id="tb_menu_take_break_now" text="Take a long a break now" />
 	
 	<string id="tea_caption_steep" text="Steep %1$d of %2$d&#10;%3$.0f°C" />
-	<string id="tea_caption_ready" text="Steeping&#10;cycle finished" />
+	<string id="tea_caption_ready" text="Tea is done" />
 	<string id="tb_menu_pour" text="Pour" />
 	<string id="tb_menu_pour_fmt" text="Pour (%d s)" />
 	<string id="tb_menu_new_tea" text="New tea" />
