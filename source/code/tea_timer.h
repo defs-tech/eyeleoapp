@@ -7,6 +7,14 @@
 
 #include <vector>
 
+// How close a running steep has to be to its end before brewing is allowed to hold the rest of the app
+// back: the short break, the hydration reminder and the long break all wait for it. A steep is a minute
+// or two at most for every tea but the herbal one, and holding a break for the sake of a countdown that is
+// nearly over costs the user nothing. Past this the brewing loses: the app exists to get people out of
+// their eyes, and a reminder that can be pushed back eight minutes by starting a pot of chamomile is not
+// doing its job.
+static const long kTeaEventDeferCapSec = 150;
+
 // One tea's steeping schedule. seconds are in seconds, and there is a hard ceiling of eight per tea
 // because that is the longest shipped schedule (pu-erh); the parser will not read more.
 struct TeaSchedule {

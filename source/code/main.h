@@ -84,6 +84,11 @@ public:
     void PourNextSteep();
     void TickTea(long elapsedMs);
     bool IsTeaMenuEnabled() const;
+    // Whether a brewing steep is close enough to its end to hold the short break, the hydration reminder
+    // and the long break back. Awaiting a pour counts as NOT brewing: the timer has run out, the bubble is
+    // down, and how long the leaf sits in the pot is the pourer's business, not something to be polite
+    // about.
+    bool TeaBlocksEvents() const;
     const TeaTimer &GetTea() const {
         return _tea;
     }
@@ -275,6 +280,9 @@ private:
     int _miniPauseInterval;
     int _miniPauseDuration;
     bool _enableSounds;
+    // Whether brewing was holding the other events back on the previous tick, so the log says it once per
+    // hold rather than on every one of the ten ticks a second.
+    bool _teaHeldEvents;
     bool _enableStrictMode;
     bool _settingWindowNearby;
     bool _settingInactivityTracking;

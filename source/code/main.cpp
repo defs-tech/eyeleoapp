@@ -694,6 +694,12 @@ bool EyeApp::IsTeaMenuEnabled() const {
     return true;
 }
 
+bool EyeApp::TeaBlocksEvents() const {
+    if (!_tea.IsBrewing() || _tea.IsAwaitingPour() || _tea.IsFinished())
+        return false;
+    return _tea.MsLeft() <= kTeaEventDeferCapSec * 1000;
+}
+
 void EyeApp::ExecuteTask(float, long time_went) {
     // Ahead of everything else, so a steep keeps running through a break.
     TickTea(time_went);
@@ -754,22 +760,42 @@ void EyeApp::ExecuteTask(float, long time_went) {
                 }
             }
 
+            // Brewing holds the rest of the app back, but only while a steep is nearly over. Read once
+            // per tick so that all four events below agree about it, and so that a steep which runs out
+            // mid-tick releases them all at once on the next.
+            const bool brewing = TeaBlocksEvents();
+            if (brewing != _teaHeldEvents) {
+                _teaHeldEvents = brewing;
+                logging::msg(brewing ? "holding events: a steep is nearly over"
+                                     : "events released");
+            }
+
             // Deliberately after the auto-relax check and outside every multiplier: a reminder is not
             // a break, so it should not arrive eight times faster because the break timers do, and it
             // should not pile up against someone who has left the desk. Auto-relax gets here only
             // while the machine is still in use, which is the only case worth reminding about.
-            if (_enableWaterReminder && _timeToWaterReminder > 0) {
+if (_enableWaterReminder && _timeToWaterReminder > 0) {
                 _timeToWaterReminder -= time_went;
 
                 if (_timeToWaterReminder <= 0) {
                     _timeToWaterReminder = 0;
-                    if (!_enableBigPause && !_enableMiniPause) {
-                        // Nobody is going to interrupt, so do not put a bubble over the screen.
-                        RestartWaterInterval();
-                    } else {
-                        ShowWaterReminder();
-                        RestartWaterInterval();
+                    // The tea bubble and the long-break countdown sit in the same corner and a short break
+                    // covers the screen; a reminder shown behind another one is a reminder not shown at
+                    // all. Held on zero rather than given a new interval, so the next free tick shows it.
+                    // Left silent on purpose: this runs on every tick for as long as it holds.
+                    const bool cornerBusy = _notificationWnd || !_miniPauseWnds.empty() ||
+                                            DrinkReminderWindow::HasInstance();
+                    if (!brewing && !cornerBusy) {
+                        if (!_enableBigPause && !_enableMiniPause) {
+                            // Nobody is going to interrupt, so do not put a bubble over the screen.
+                            RestartWaterInterval();
+                        } else {
+                            ShowWaterReminder();
+                            RestartWaterInterval();
+                        }
                     }
+                }
+            }
                 }
             }
 
@@ -777,7 +803,13 @@ void EyeApp::ExecuteTask(float, long time_went) {
                 int multiplier = _fastMode ? 8 : 1;
                 _timeLeftToBigPause -= time_went * multiplier;
 
-                if (_warningInterval > 0.0f) {
+                // Held at the confirmation mark rather than left to fall past it. The block that owns it
+                // only runs while the counter is positive, so a counter left to keep falling while brewing
+                // goes out of the block entirely and the long break then never comes at all.
+                if (brewing && _timeLeftToBigPause <= eyeleo::settings::timeForLongBreakConfirmation * 1000)
+                    _timeLeftToBigPause = eyeleo::settings::timeForLongBreakConfirmation * 1000;
+
+                if (!brewing && _warningInterval > 0.0f) {
                     if (_timeLeftToBigPause <= _warningInterval * 60 * 1000 && _timeLeftToBigPause > eyeleo::settings::timeForLongBreakConfirmation * 1000) {
                         if (!NotificationWindow::hasAnyInstance() && !_showedLongBreakCountdown) {
                             // open the countdown window, but not over a fullscreen app
@@ -809,7 +841,7 @@ void EyeApp::ExecuteTask(float, long time_went) {
                     }
                 }
 
-                if (_timeLeftToBigPause <= eyeleo::settings::timeForLongBreakConfirmation * 1000) {
+                if (!brewing && _timeLeftToBigPause <= eyeleo::settings::timeForLongBreakConfirmation * 1000) {
                     ChangeState(STATE_START_BIG_PAUSE, 100);
                     break;
                 }
@@ -819,7 +851,9 @@ void EyeApp::ExecuteTask(float, long time_went) {
                     int multiplier = _fastMode ? 2 : 1;
                     _timeLeftToMiniPause -= time_went * multiplier;
                 }
-                if (!NotificationWindow::hasAnyInstance() && !_showedLongBreakCountdown) // don't show mini-pause if big pause is about to start
+                // No hold needed here: the counter only ever falls while it is positive, so a suppressed
+                // break simply sits at zero and fires on the first tick brewing allows.
+                if (!brewing && !NotificationWindow::hasAnyInstance() && !_showedLongBreakCountdown) // don't show mini-pause if big pause is about to start
                 {
                     if (_timeLeftToMiniPause <= 0) {
                         StartMiniPause();
@@ -1519,6 +1553,7 @@ void EyeApp::ResetSettings() {
     _enableWarning = true;
     _warningInterval = 0.5f;
     _enableSounds = true;
+    _teaHeldEvents = false;
     _enableStrictMode = false;
     _settingWindowNearby = true;
     _settingCanCloseNotifications = false;
