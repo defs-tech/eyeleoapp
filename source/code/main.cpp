@@ -796,8 +796,6 @@ if (_enableWaterReminder && _timeToWaterReminder > 0) {
                     }
                 }
             }
-                }
-            }
 
             if (_enableBigPause && _timeLeftToBigPause > 0) {
                 int multiplier = _fastMode ? 8 : 1;
