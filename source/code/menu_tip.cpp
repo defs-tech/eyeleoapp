@@ -292,16 +292,19 @@ bool MenuItemTip::Show(int cmdId, const wxString &text) {
 
     // Measured under the very font the window draws with, so the two can never disagree about how wide the
     // text is. Asked of GDI rather than of a control, which is what produced a width of zero last time.
-    int textWidth = 0;
-    int textHeight = 0;
+    // GetTextExtentPoint32 hands back a single packed SIZE, not the two integers its older sibling
+    // GetTextExtentPoint hands back.
+    SIZE measured = {0, 0};
     HDC dc = ::GetDC(_hwnd);
     if (dc) {
         HGDIOBJ oldFont = _font ? (HGDIOBJ)::SelectObject(dc, _font) : 0;
-        ::GetTextExtentPoint32W(dc, wtext.c_str(), (int)wtext.size(), &textWidth, &textHeight);
+        ::GetTextExtentPoint32W(dc, wtext.c_str(), (int)wtext.size(), &measured);
         if (oldFont)
             ::SelectObject(dc, oldFont);
         ::ReleaseDC(_hwnd, dc);
     }
+    int textWidth = (int)measured.cx;
+    int textHeight = (int)measured.cy;
 
     if (textWidth <= 0 || textHeight <= 0) {
         logging::msg(wxString::Format(L"menu hint: command %d, GDI measured %dx%d, which is no hint; nothing shown",
@@ -327,7 +330,7 @@ bool MenuItemTip::Show(int cmdId, const wxString &text) {
     // Held inside the work area of the display the pointer is on. Without that the tip goes wherever the
     // arithmetic puts it, which on a second monitor to the right or below is nowhere near the menu that
     // asked for it.
-    HWND monitor = ::MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
+    HMONITOR monitor = ::MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
     if (monitor) {
         MONITORINFO info;
         ::ZeroMemory(&info, sizeof(info));
