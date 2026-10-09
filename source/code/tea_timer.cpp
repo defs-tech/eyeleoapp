@@ -86,6 +86,62 @@ static bool CopyTextFile(const wxString &from, const wxString &to) {
     return true;
 }
 
+// The name written back has to be one KindFromName accepts, so the English spelling is used. Empty for a
+// kind with no schedule, water among them.
+static wxString ScheduleName(EDrinkKind kind) {
+    switch (kind) {
+    case DRINK_GREEN:
+        return wxT("green");
+    case DRINK_WHITE:
+        return wxT("white");
+    case DRINK_OOLONG:
+        return wxT("oolong");
+    case DRINK_BLACK:
+        return wxT("black");
+    case DRINK_RED:
+        return wxT("red");
+    case DRINK_PUER:
+        return wxT("puer");
+    case DRINK_HERBAL:
+        return wxT("herbal");
+    default:
+        return wxEmptyString;
+    }
+}
+
+// One schedule as a config line, or empty if it cannot be written as one.
+static wxString ScheduleLine(const TeaSchedule &schedule) {
+    wxString name = ScheduleName(schedule.kind);
+    if (name.IsEmpty() || schedule.count <= 0)
+        return wxEmptyString;
+
+    wxString line = wxString::Format(wxT("%s, %.0f"), name, schedule.temperature);
+    for (int k = 0; k < schedule.count; k++)
+        line += wxString::Format(wxT(", %d"), schedule.seconds[k]);
+    return line;
+}
+
+bool TeaTimer::AppendToConfigFile(const wxString &path, const wxString &lines) {
+    // The whole file is rewritten rather than opened for append, because the last line of a file a user
+    // has been editing need not end in a newline and appending onto that one would run the new tea into
+    // the old one. What was there is kept byte for byte; the new lines go after it.
+    wxString text;
+    if (!ReadTextFile(path, &text)) {
+        logging::msg("tea.conf could not be re-read, the missing teas were not written out");
+        return false;
+    }
+
+    if (!text.IsEmpty() && text[text.length() - 1] != '\n')
+        text += wxT("\n");
+
+    wxFFile out(path, "wb");
+    if (!out.IsOpened() || !out.Write(text + lines)) {
+        logging::msg("tea.conf could not be written; the teas added in this version are still in use");
+        return false;
+    }
+    return true;
+}
+
 void TeaTimer::LoadConfig(const wxString &path, const wxString &templatePath) {
     // Back to the shipped schedules first, so a reload after an edit never leaves a half-applied file
     // behind.
@@ -109,6 +165,9 @@ void TeaTimer::LoadConfig(const wxString &path, const wxString &templatePath) {
         logging::msg("tea.conf is empty or not valid UTF-8, using the built-in schedules");
         return;
     }
+
+    // Which teas the file names, so that the ones it does not can be written out afterwards.
+    bool found[NUM_DRINKS] = {false};
 
     // One tea per line: name, temperature, then the steeps in seconds.
     //   puer, 99, 20, 30, 40, 50, 60, 70, 80, 90
@@ -177,9 +236,35 @@ void TeaTimer::LoadConfig(const wxString &path, const wxString &templatePath) {
         if (!replaced)
             _schedules.push_back(schedule);
 
+        if (kind > DRINK_NONE && kind < NUM_DRINKS)
+            found[kind] = true;
+
         logging::msg(wxString::Format(L"tea.conf: schedule for kind %d read with %d steeps", kind,
                                        schedule.count));
     }
+
+    // A tea added after this file was written is simply not in it. The built-in schedule covers it, so
+    // nothing is broken and brewing it works: the log above simply does not mention it. What was broken
+    // is the file the user is told to edit, which goes on not naming a tea that is in use, so an edit to
+    // it would look like it should apply and would not. The missing lines are added in the same wording
+    // the shipped copy uses, once, and only for teas that are actually missing.
+    wxString missing;
+    for (size_t i = 0; i < sizeof(kDefaultSchedules) / sizeof(kDefaultSchedules[0]); i++) {
+        EDrinkKind kind = kDefaultSchedules[i].kind;
+        if (kind > DRINK_NONE && kind < NUM_DRINKS && found[kind])
+            continue;
+
+        const TeaSchedule *inUse = ScheduleFor(kind);
+        if (!inUse)
+            continue;
+
+        wxString line = ScheduleLine(*inUse);
+        if (!line.IsEmpty())
+            missing += line + wxT("\n");
+    }
+
+    if (!missing.IsEmpty() && AppendToConfigFile(path, missing))
+        logging::msg("tea.conf: added the teas this version introduced");
 }
 
 void TeaTimer::SaveDefaultConfig(const wxString &path) const {
@@ -200,40 +285,12 @@ void TeaTimer::SaveDefaultConfig(const wxString &path) const {
     text += wxT("# Water has no schedule: it is a drink, not something you steep.\n");
     text += wxT("# Change a line and restart EyeLeo. Anything unreadable falls back to the values here.\n");
 
+    // The same line builder the append path uses, so a tea written out here and a tea appended later
+    // come out spelled and formatted identically.
     for (size_t i = 0; i < _schedules.size(); i++) {
-        const TeaSchedule &s = _schedules[i];
-        // The name written back has to be one KindFromName accepts, so the English spelling is used.
-        wxString teaName;
-        switch (s.kind) {
-        case DRINK_GREEN:
-            teaName = wxT("green");
-            break;
-        case DRINK_WHITE:
-            teaName = wxT("white");
-            break;
-        case DRINK_OOLONG:
-            teaName = wxT("oolong");
-            break;
-        case DRINK_BLACK:
-            teaName = wxT("black");
-            break;
-        case DRINK_RED:
-            teaName = wxT("red");
-            break;
-        case DRINK_PUER:
-            teaName = wxT("puer");
-            break;
-        case DRINK_HERBAL:
-            teaName = wxT("herbal");
-            break;
-        default:
-            continue;
-        }
-
-        text += wxString::Format(wxT("%s, %.0f"), teaName, s.temperature);
-        for (int k = 0; k < s.count; k++)
-            text += wxString::Format(wxT(", %d"), s.seconds[k]);
-        text += wxT("\n");
+        wxString line = ScheduleLine(_schedules[i]);
+        if (!line.IsEmpty())
+            text += line + wxT("\n");
     }
 
     wxFFile out(path, "wb");

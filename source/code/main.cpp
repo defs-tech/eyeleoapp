@@ -565,6 +565,13 @@ void EyeApp::TickTea(long elapsedMs) {
         return;
 
     if (elapsedMs > 0 && _tea.Advance(elapsedMs)) {
+        // A steep ran out, the last one included: the leaves have given what they were going to give, and
+        // whether another pour follows is the pourer's business, not part of the event. SystemNotify is
+        // the desktop's own "something happened", where SystemExclamation is already the long break's.
+        // An alias and not a file, so the sound is the one from the user's own scheme.
+        if (_enableSounds)
+            ::PlaySound(L"SystemNotify", NULL, SND_ALIAS | SND_ASYNC);
+
         if (_tea.IsFinished()) {
             // The last steep ended on its own. The bubble showing its countdown is still up and is what
             // the notice belongs in: there is one bubble by design and a second cannot be created while

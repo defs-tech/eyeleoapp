@@ -90,6 +90,10 @@ private:
     static int KindFromName(const wxString &name);
     void ResetToDefaults();
 
+    // Appends lines to an existing tea.conf. Used only for teas that a later version added, so that
+    // the file the user edits names every tea that is actually in use.
+    static bool AppendToConfigFile(const wxString &path, const wxString &lines);
+
     std::vector<TeaSchedule> _schedules;
 
     const TeaSchedule *_schedule; // into _schedules, never into a local
