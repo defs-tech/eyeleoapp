@@ -24,6 +24,7 @@ DrinkReminderWindow::DrinkReminderWindow(int drinkKind, const wxString &caption,
     , _drinkKind(drinkKind)
     , _caption(caption)
     , _autoDismissMs(autoDismissMs)
+    , _hideCountdown(false)
     , _activeMsLeft(0)
     , _shownMsLeft(0)
     , _alpha(0.0f)
@@ -195,9 +196,23 @@ void DrinkReminderWindow::ExecuteTask(float f, long time_went) {
     }
 }
 
+void DrinkReminderWindow::HideCountdown() {
+    // The "ready" notice has a caption and nothing to count. It dismisses itself on a timer, and without
+    // this the dismissal timer would be what the number showed: a 5, 4, 3 counting down to the bubble
+    // going away, which reads as a countdown of something nobody asked about. mac shows no number there.
+    _hideCountdown = true;
+    UpdateTimeLabel();
+}
+
 void DrinkReminderWindow::UpdateTimeLabel() {
     if (!_timeText)
         return;
+
+    if (_hideCountdown) {
+        if (_timeText->GetLabel() != wxEmptyString)
+            _timeText->SetLabel(wxEmptyString);
+        return;
+    }
 
     // Two possible countdowns, and the tea timer sets its own explicitly. When it does not, what the
     // user is waiting for is this bubble closing, so that is what the number shows: the hydration

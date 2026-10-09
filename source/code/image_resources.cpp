@@ -15,6 +15,7 @@ static const wchar_t *const kDrinkFiles[] = {
     L"tea_white",
     L"tea_oolong",
     L"tea_black",
+    L"tea_red",
     L"tea_puer",
     L"tea_herbal",
     L"tea_water",

@@ -17,6 +17,7 @@ enum EDrinkKind {
     DRINK_WHITE,
     DRINK_OOLONG,
     DRINK_BLACK,
+    DRINK_RED,
     DRINK_PUER,
     DRINK_HERBAL,
     DRINK_WATER,

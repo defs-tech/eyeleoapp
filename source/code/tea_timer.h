@@ -78,6 +78,11 @@ public:
     // Seconds until the next pour, or 0 when there is nothing to pour. Drives the menu item's label.
     int NextPourSeconds() const;
 
+    // How long the next steep will run for once poured, or 0 when there is none. Only meaningful while
+    // awaiting a pour: that is the moment the number is worth having, because it says what pressing the
+    // item is about to commit you to. Same idea as EBTeaSessionNextSeconds on mac.
+    int UpcomingSteepSeconds() const;
+
     // Drops the session. The chosen tea is deliberately not remembered across a restart.
     void Stop();
 

@@ -17,11 +17,12 @@
 	<string id="tb_menu_pour" text="Пролив" />
 	<string id="tb_menu_pour_fmt" text="Пролив (%d с)" />
 	<string id="tb_menu_new_tea" text="Новый чай" />
-	<string id="tea_scheme_fmt" text="%s: проливов %d, по %s с, %.0f°C" />
+	<string id="tea_scheme_fmt" text="проливов %d: %s с, %.0f°C" />
 	<string id="tea_name_green" text="Зелёный чай" />
 	<string id="tea_name_white" text="Белый чай" />
 	<string id="tea_name_oolong" text="Улун" />
 	<string id="tea_name_black" text="Чёрный чай" />
+	<string id="tea_name_red" text="Красный чай" />
 	<string id="tea_name_puer" text="Пуэр" />
 	<string id="tea_name_herbal" text="Травяной чай" />
 	<string id="tea_name_water" text="Вода" />

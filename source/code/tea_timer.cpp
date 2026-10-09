@@ -14,6 +14,7 @@ static const TeaSchedule kDefaultSchedules[] = {
     {DRINK_WHITE, 85.0, {10, 15, 20, 25, 30, 0, 0, 0}, 5},
     {DRINK_OOLONG, 85.0, {15, 25, 35, 45, 60, 75, 0, 0}, 6},
     {DRINK_BLACK, 90.0, {20, 30, 40, 50, 60, 70, 0, 0}, 6},
+    {DRINK_RED, 95.0, {7, 10, 15, 20, 25, 30, 0, 0}, 6},
     {DRINK_PUER, 99.0, {20, 30, 40, 50, 60, 70, 80, 90}, 8},
     {DRINK_HERBAL, 100.0, {300, 360, 420, 480, 0, 0, 0, 0}, 4},
 };
@@ -28,6 +29,7 @@ static const wchar_t *const kKindNames[][4] = {
     {L"white", L"белый", 0, 0},
     {L"oolong", L"oolon", L"улун", 0},
     {L"black", L"чёрный", L"черный", 0},
+    {L"red", L"красный", L"красн", 0},
     {L"puer", L"pu-er", L"пуэр", 0},
     {L"herbal", L"травяной", L"grass", 0},
 };
@@ -215,6 +217,9 @@ void TeaTimer::SaveDefaultConfig(const wxString &path) const {
         case DRINK_BLACK:
             teaName = wxT("black");
             break;
+        case DRINK_RED:
+            teaName = wxT("red");
+            break;
         case DRINK_PUER:
             teaName = wxT("puer");
             break;
@@ -307,6 +312,14 @@ int TeaTimer::NextPourSeconds() const {
     if (!_brewing || _finished || !_schedule || _awaiting)
         return 0;
     return (int)((_msLeft - 1) / 1000 + 1);
+}
+
+int TeaTimer::UpcomingSteepSeconds() const {
+    if (!_brewing || _finished || !_awaiting || !_schedule)
+        return 0;
+    if (_steep + 1 >= _schedule->count)
+        return 0;
+    return _schedule->seconds[_steep + 1];
 }
 
 void TeaTimer::Stop() {

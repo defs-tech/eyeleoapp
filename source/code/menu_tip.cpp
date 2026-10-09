@@ -24,16 +24,21 @@ static const int kPadding = 4;
 static const int kMinHintSize = 20;
 static const int kMaxHintSize = 1200;
 
-// The same dark grey the long break and the drink reminder are drawn on, so the tip belongs to the same
-// family as the rest of what this program puts on screen.
-static const COLORREF kBgColour = RGB(32, 33, 34);
-static const COLORREF kFgColour = RGB(255, 255, 255);
+// A light tip rather than a dark one. Near-black read as a black box dropped on a light menu, and the
+// tip is read rather than looked at: light ground, dark letters, the way the system's own is.
+static const COLORREF kBgColour = RGB(240, 240, 240);
+static const COLORREF kFgColour = RGB(0, 0, 0);
+
+// Eight point, a size down from the menu font. The stock GUI font was never bold, it was simply as large
+// as the menu's, and a tip that matches the menu in weight competes with it rather than sitting under it.
+static const int kFontPointSize = 8;
 
 static const wchar_t *const kHintClassName = L"EyeLeoTeaHint";
 
-// Made once, when the first tip window paints, and destroyed with the last one. One window exists at a
-// time, so one brush does.
+// Made once, when the first tip window is created, and destroyed with the last one. One window exists at
+// a time, so one brush and one font do.
 static HBRUSH g_hintBrush = 0;
+static HFONT g_hintFont = 0;
 
 // Four messages, and everything else belongs to Windows.
 //
@@ -91,9 +96,15 @@ static LRESULT CALLBACK HintWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         return MA_NOACTIVATE;
 
     case WM_NCDESTROY:
+        // Both are ours rather than the system's, so both have to be released, and both here rather than
+        // in the caller: Destroy() is deferred, and a frame could still be painted after it returned.
         if (g_hintBrush) {
             ::DeleteObject(g_hintBrush);
             g_hintBrush = 0;
+        }
+        if (g_hintFont) {
+            ::DeleteObject(g_hintFont);
+            g_hintFont = 0;
         }
         break;
 
@@ -169,7 +180,23 @@ void MenuItemTip::Start(HMENU mainMenu, HMENU subMenu) {
         _hwnd = ::CreateWindowExW(WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW, kHintClassName, L"", WS_POPUP,
                                   0, 0, 1, 1, NULL, NULL, ::GetModuleHandle(NULL), NULL);
         if (_hwnd) {
-            _font = (HFONT)::GetStockObject(DEFAULT_GUI_FONT);
+            // Made rather than borrowed: the stock GUI font has no size of its own to ask for, and the
+            // tip is meant to be quieter than the menu. The point size is converted against the window's
+            // own DPI, so it stays 8pt on a scaled display instead of shrinking with the system metrics.
+            HDC dc = ::GetDC(_hwnd);
+            int dpiY = dc ? ::GetDeviceCaps(dc, LOGPIXELSY) : 96;
+            if (dc)
+                ::ReleaseDC(_hwnd, dc);
+            if (dpiY <= 0)
+                dpiY = 96;
+            // Negative height, because in GDI that asks for the height of the characters themselves; a
+            // positive one asks for the height of the cell they sit in, and the text comes out larger.
+            // The division rounds rather than truncating, so 8pt at 96dpi is -11 and not -10.
+            int fontHeight = -(kFontPointSize * dpiY + 36) / 72;
+            _font = ::CreateFontW(fontHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+                                  OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                                  DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+            g_hintFont = _font;
             ::SendMessage(_hwnd, WM_SETFONT, (WPARAM)_font, TRUE);
         }
     }

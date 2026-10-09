@@ -42,6 +42,10 @@ public:
     // timer counts down to the next pour while the bubble itself stays until the pour happens.
     void SetTimeLabel(long msLeft);
 
+    // Stops the number from being shown at all, for the "ready" notice, which has a caption and no
+    // countdown of its own to show.
+    void HideCountdown();
+
     // Arms or cancels the self-dismiss. <= 0 means stay until something hides it.
     void SetAutoDismiss(long ms);
 
@@ -72,6 +76,7 @@ private:
     // a bubble that stays put while its countdown runs down to the next pour.
     long _autoDismissMs; // 0 means stay until something hides it
     long _activeMsLeft;  // only counts while the bubble is up and dismissing
+    bool _hideCountdown; // the notice asked for no number: the dismissal clock is not one
     long _shownMsLeft;   // what the countdown on screen is counting
     float _alpha;
     bool _preventClosing;

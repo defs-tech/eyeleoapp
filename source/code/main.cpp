@@ -554,11 +554,30 @@ void EyeApp::TickTea(long elapsedMs) {
     if (!_tea.IsBrewing())
         return;
 
+    // The session is over: the ready notice has been put up, or has come and gone, and there is nothing
+    // left to count. Without this the tail of TickTea ran on every tick with a finished session, and since
+    // IsAwaitingPour() is false for a finished one it asked for the last steep's caption again and again.
+    // ShowTeaReminder writes that onto the bubble that is already up, so the "ready" notice was replaced
+    // by the last steep within one tick and the bubble, having nothing left to dismiss it, stayed for good.
+    // It held the single reminder slot, and IsTeaMenuEnabled() refuses while the slot is held, so the tea
+    // part of the menu stayed blocked too.
+    if (_tea.IsFinished())
+        return;
+
     if (elapsedMs > 0 && _tea.Advance(elapsedMs)) {
         if (_tea.IsFinished()) {
-            // The last steep ended on its own, so say the tea is ready and let the bubble take itself
-            // down again a few seconds later.
-            ShowTeaReminder(TeaReadyCaption(), 0, kTeaReadyNoticeSec * 1000);
+            // The last steep ended on its own. The bubble showing its countdown is still up and is what
+            // the notice belongs in: there is one bubble by design and a second cannot be created while
+            // the first holds the slot, so the notice is written onto it rather than replacing it.
+            logging::msg(L"tea: last steep done, putting up the ready notice");
+            if (_teaReminderWnd) {
+                _teaReminderWnd->HideCountdown();
+                _teaReminderWnd->SetCaption(TeaReadyCaption());
+                _teaReminderWnd->SetTimeLabel(0);
+                _teaReminderWnd->SetAutoDismiss(kTeaReadyNoticeSec * 1000);
+            } else {
+                ShowTeaReminder(TeaReadyCaption(), 0, kTeaReadyNoticeSec * 1000);
+            }
             return;
         }
 
@@ -604,6 +623,8 @@ wxString EyeApp::TeaName(EDrinkKind kind) {
         return langPack->Get(L"tea_name_oolong");
     case DRINK_BLACK:
         return langPack->Get(L"tea_name_black");
+    case DRINK_RED:
+        return langPack->Get(L"tea_name_red");
     case DRINK_PUER:
         return langPack->Get(L"tea_name_puer");
     case DRINK_HERBAL:
@@ -1708,7 +1729,7 @@ EyeTaskBarIcon::EyeTaskBarIcon()
     Connect(ID_TASKBAR_MENU_PAUSE_RESUME_MONITORING_2, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(EyeTaskBarIcon::OnPauseResumeMonitoring2));
     Connect(ID_TASKBAR_MENU_TAKE_LONG_BREAK_NOW, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(EyeTaskBarIcon::OnTakeLongBreakNow));
     Connect(ID_TASKBAR_MENU_POUR, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(EyeTaskBarIcon::OnPourNextSteep));
-    for (int i = 1; i <= 6; i++)
+    for (int i = 1; i <= 7; i++)
         Connect((int)(ID_TASKBAR_MENU_TEA_BASE + i), wxEVT_COMMAND_MENU_SELECTED,
                 wxCommandEventHandler(EyeTaskBarIcon::OnStartTea));
 }
@@ -1780,9 +1801,15 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
     _teaSubMenu = 0;
     if (app->IsTeaMenuEnabled()) {
         wxString pourLabel = langPack->Get("tb_menu_pour");
-        int nextPour = app->GetTea().NextPourSeconds();
-        if (nextPour > 0)
-            pourLabel = wxString::Format(langPack->Get("tb_menu_pour_fmt"), nextPour);
+        // Two different numbers, and only one of them can be showing at a time. While a steep runs, what
+        // is worth knowing is how long is left of it. Once it has run out, nothing is left to count and
+        // the number that is worth having is how long the next one will run for, because that is what
+        // pressing the item commits you to. Same rule as EBTeaSessionNextSeconds on mac.
+        int pourSeconds = app->GetTea().NextPourSeconds();
+        if (pourSeconds <= 0)
+            pourSeconds = app->GetTea().UpcomingSteepSeconds();
+        if (pourSeconds > 0)
+            pourLabel = wxString::Format(langPack->Get("tb_menu_pour_fmt"), pourSeconds);
 
         item = new wxMenuItem(_menu, ID_TASKBAR_MENU_POUR, pourLabel);
         item->Enable(app->GetTea().IsAwaitingPour());
@@ -1792,8 +1819,8 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
         _teaSubMenu = teaMenu;
         item = _menu->AppendSubMenu(teaMenu, langPack->Get("tb_menu_new_tea"));
 
-        static const EDrinkKind kTeas[] = {DRINK_GREEN, DRINK_WHITE, DRINK_OOLONG,
-                                           DRINK_BLACK, DRINK_PUER,  DRINK_HERBAL};
+        static const EDrinkKind kTeas[] = {DRINK_GREEN, DRINK_WHITE, DRINK_OOLONG, DRINK_BLACK,
+                                           DRINK_RED,   DRINK_PUER,  DRINK_HERBAL};
         for (int i = 0; i < (int)(sizeof(kTeas) / sizeof(kTeas[0])); i++) {
             EDrinkKind kind = kTeas[i];
 
@@ -1828,8 +1855,8 @@ bool EyeTaskBarIcon::PopupMenu(wxMenu *menu) {
 
     if (menu && _teaSubMenu) {
         EyeApp *app = getApp();
-        static const EDrinkKind kTeas[] = {DRINK_GREEN, DRINK_WHITE, DRINK_OOLONG,
-                                           DRINK_BLACK, DRINK_PUER,  DRINK_HERBAL};
+        static const EDrinkKind kTeas[] = {DRINK_GREEN, DRINK_WHITE, DRINK_OOLONG, DRINK_BLACK,
+                                           DRINK_RED,   DRINK_PUER,  DRINK_HERBAL};
         for (int i = 0; i < (int)(sizeof(kTeas) / sizeof(kTeas[0])); i++) {
             const TeaSchedule *schedule = app->GetTea().ScheduleFor(kTeas[i]);
             if (!schedule)
@@ -1841,9 +1868,11 @@ bool EyeTaskBarIcon::PopupMenu(wxMenu *menu) {
                     list += L", ";
                 list += wxString::Format(L"%d", schedule->seconds[s]);
             }
+            // No tea name in the text: the tip only appears while the pointer is on that very menu
+            // item, which already carries the name. Repeating it there costs width for nothing.
             tip.SetItemText((int)(ID_TASKBAR_MENU_TEA_BASE + 1 + i),
-                            wxString::Format(langPack->Get("tea_scheme_fmt"), EyeApp::TeaName(kTeas[i]),
-                                             schedule->count, list, schedule->temperature));
+                            wxString::Format(langPack->Get("tea_scheme_fmt"), schedule->count, list,
+                                             schedule->temperature));
         }
 
         tip.Start(menu->GetHMenu(), _teaSubMenu->GetHMenu());
@@ -1876,10 +1905,10 @@ void EyeTaskBarIcon::OnPourNextSteep(wxCommandEvent &) {
 }
 
 void EyeTaskBarIcon::OnStartTea(wxCommandEvent &event) {
-    // One handler for all six: the id is the kind's position in the menu's list, and the list order is
+    // One handler for all seven: the id is the kind's position in the menu's list, and the list order is
     // fixed, so there is nothing to look up.
-    static const EDrinkKind kTeas[] = {DRINK_GREEN, DRINK_WHITE, DRINK_OOLONG,
-                                       DRINK_BLACK, DRINK_PUER,  DRINK_HERBAL};
+    static const EDrinkKind kTeas[] = {DRINK_GREEN, DRINK_WHITE, DRINK_OOLONG, DRINK_BLACK,
+                                       DRINK_RED,   DRINK_PUER,  DRINK_HERBAL};
     int index = event.GetId() - (int)ID_TASKBAR_MENU_TEA_BASE - 1;
     if (index < 0 || index >= (int)(sizeof(kTeas) / sizeof(kTeas[0])))
         return;
