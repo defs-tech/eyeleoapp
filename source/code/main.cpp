@@ -593,9 +593,11 @@ void EyeApp::TickTea(long elapsedMs) {
 }
 
 wxString EyeApp::TeaReadyCaption() {
-    // Positional placeholders, because the tea's name comes first in English and the number does not
-    // come first in either language.
-    return wxString::Format(langPack->Get("tea_caption_ready"), TeaName(_tea.Kind()));
+    // Not "the tea is ready": by the time this is reached the last steep has been poured and nothing
+    // more is coming out of the leaves, so the brewing cycle is over rather than anything ready. The
+    // tea's name left the text along with the claim, which is what let the notice fit in three lines,
+    // one word each.
+    return langPack->Get("tea_caption_ready");
 }
 
 wxString EyeApp::TeaSteepCaption() {

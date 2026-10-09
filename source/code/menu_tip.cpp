@@ -73,8 +73,13 @@ static LRESULT CALLBACK HintWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
             }
 
             if (!text.empty()) {
-                HFONT font = (HFONT)::SendMessage(hwnd, WM_GETFONT, 0, 0);
-                HGDIOBJ oldFont = font ? (HGDIOBJ)::SelectObject(dc, font) : 0;
+                // The font is taken straight from the variable that made it, not asked of the window with
+                // WM_GETFONT. A window of an ordinary class gets no answer to that from the default
+                // procedure, and a null font here meant the text went out in the system's default face
+                // while the width had been measured in ours: the tip came out larger than the menu's and
+                // its ends were cut off, because the window had been sized for the smaller one. Using the
+                // same handle that measured it makes the two the same by construction.
+                HGDIOBJ oldFont = g_hintFont ? (HGDIOBJ)::SelectObject(dc, g_hintFont) : 0;
                 ::SetBkMode(dc, TRANSPARENT);
                 ::SetTextColor(dc, kFgColour);
                 ::DrawTextW(dc, text.c_str(), (int)text.size(), &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
@@ -147,6 +152,7 @@ MenuItemTip::MenuItemTip()
     , _subMenu(NULL)
     , _hwnd(NULL)
     , _font(NULL)
+    , _fontHeight(0)
     , _hoverCmdId(0)
     , _shownCmdId(0)
     , _ticksIdle(0)
@@ -192,8 +198,8 @@ void MenuItemTip::Start(HMENU mainMenu, HMENU subMenu) {
             // Negative height, because in GDI that asks for the height of the characters themselves; a
             // positive one asks for the height of the cell they sit in, and the text comes out larger.
             // The division rounds rather than truncating, so 8pt at 96dpi is -11 and not -10.
-            int fontHeight = -(kFontPointSize * dpiY + 36) / 72;
-            _font = ::CreateFontW(fontHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+            _fontHeight = -(kFontPointSize * dpiY + 36) / 72;
+            _font = ::CreateFontW(_fontHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
                                   OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
                                   DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
             g_hintFont = _font;
@@ -220,6 +226,7 @@ void MenuItemTip::Stop() {
         _hwnd = NULL;
     }
     _font = NULL;
+    _fontHeight = 0;
 
     _mainMenu = NULL;
     _subMenu = NULL;
@@ -339,7 +346,9 @@ bool MenuItemTip::Show(int cmdId, const wxString &text) {
         return false;
     }
 
-    int width = textWidth + 2 * kPadding;
+    // A couple of pixels more than the text needs, because a tip whose last two letters are shaved off
+    // looks broken and the slack costs nothing that can be seen.
+    int width = textWidth + 2 * kPadding + 4;
     int height = textHeight + 2 * kPadding;
 
     if (width < kMinHintSize || width > kMaxHintSize || height < kMinHintSize || height > kMaxHintSize) {
@@ -390,9 +399,9 @@ bool MenuItemTip::Show(int cmdId, const wxString &text) {
     if (!_logged) {
         _logged = true;
         logging::msg(wxString::Format(
-            L"menu hint: command %d, text %dx%d, asked %dx%d at %d,%d, visible=%d, actual %d,%d %dx%d, text: %s",
-            cmdId, textWidth, textHeight, width, height, x, y, (int)::IsWindowVisible(_hwnd), actual.left,
-            actual.top, actual.right - actual.left, actual.bottom - actual.top, text));
+            L"menu hint: command %d, text %dx%d, asked %dx%d at %d,%d, font %d, visible=%d, actual %d,%d %dx%d, text: %s",
+            cmdId, textWidth, textHeight, width, height, x, y, _fontHeight, (int)::IsWindowVisible(_hwnd),
+            actual.left, actual.top, actual.right - actual.left, actual.bottom - actual.top, text));
     }
 
     return ::IsWindowVisible(_hwnd) != FALSE;

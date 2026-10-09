@@ -56,6 +56,7 @@ private:
     // is up, which is the one circumstance under which window creation had failed.
     HWND _hwnd;
     HFONT _font;
+    int _fontHeight; // what the font was asked for, so the log can show what it drew with
 
     int _hoverCmdId; // tea under the pointer, 0 for none
     int _shownCmdId; // tea the visible tip belongs to, 0 for none

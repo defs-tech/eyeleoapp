@@ -46,6 +46,11 @@ public:
     // countdown of its own to show.
     void HideCountdown();
 
+    // The caption's box in the bubble: the top half of the text column for a caption with a number
+    // under it, the whole column for one without. Both places that change it go through here, so the
+    // coordinates exist in one place only.
+    void ApplyCaptionLayout(bool fullHeight);
+
     // Arms or cancels the self-dismiss. <= 0 means stay until something hides it.
     void SetAutoDismiss(long ms);
 

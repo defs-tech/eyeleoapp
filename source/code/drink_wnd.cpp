@@ -119,6 +119,13 @@ DrinkReminderWindow::~DrinkReminderWindow() {
 }
 
 void DrinkReminderWindow::SetTimeLabel(long msLeft) {
+    // A countdown asked for again undoes the notice that asked for none. One window serves every
+    // reminder of a session, and without this a steep arriving after the cycle notice would keep the
+    // tall caption box and, worse, keep the number hidden for the rest of the session.
+    if (msLeft > 0 && _hideCountdown) {
+        _hideCountdown = false;
+        ApplyCaptionLayout(false);
+    }
     _shownMsLeft = msLeft;
     UpdateTimeLabel();
 }
@@ -196,11 +203,30 @@ void DrinkReminderWindow::ExecuteTask(float f, long time_went) {
     }
 }
 
+void DrinkReminderWindow::ApplyCaptionLayout(bool fullHeight) {
+    if (!_captionText)
+        return;
+
+    // The bubble is 209x71 and the cup slot ends at x=77, so the text column runs from 82 to 203. The
+    // tall box leaves 6 points of margin above and below, the same as the right-hand one.
+    if (fullHeight)
+        _captionText->SetSize(wxSize(121, 59));
+    else
+        _captionText->SetSize(wxSize(121, 32));
+    _captionText->SetPosition(wxPoint(82, 6));
+    _captionText->Refresh();
+}
+
 void DrinkReminderWindow::HideCountdown() {
     // The "ready" notice has a caption and nothing to count. It dismisses itself on a timer, and without
     // this the dismissal timer would be what the number showed: a 5, 4, 3 counting down to the bubble
     // going away, which reads as a countdown of something nobody asked about. mac shows no number there.
     _hideCountdown = true;
+    // With no number under it, the caption has the bubble to itself, and it is handed the whole column
+    // rather than the top half of it. The cycle notice is three lines and a font of 11 wants about 42
+    // points for them, so the 32 it is given for the two-line steep caption would shave the third line
+    // off the bottom. Centred in a taller box it stands in the middle of the bubble instead.
+    ApplyCaptionLayout(true);
     UpdateTimeLabel();
 }
 
