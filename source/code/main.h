@@ -89,6 +89,10 @@ public:
     // down, and how long the leaf sits in the pot is the pourer's business, not something to be polite
     // about.
     bool TeaBlocksEvents() const;
+    // The sound a finished steep makes. Tries the name the user picked once, and falls back to a known
+    // one if this machine does not answer to it: a silent steep is worse than the wrong one, and
+    // PlaySound reports an unknown name only by returning FALSE.
+    static void PlaySteepSound();
     const TeaTimer &GetTea() const {
         return _tea;
     }

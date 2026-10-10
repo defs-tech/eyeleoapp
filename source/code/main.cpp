@@ -566,11 +566,9 @@ void EyeApp::TickTea(long elapsedMs) {
 
     if (elapsedMs > 0 && _tea.Advance(elapsedMs)) {
         // A steep ran out, the last one included: the leaves have given what they were going to give, and
-        // whether another pour follows is the pourer's business, not part of the event. SystemNotify is
-        // the desktop's own "something happened", where SystemExclamation is already the long break's.
-        // An alias and not a file, so the sound is the one from the user's own scheme.
+        // whether another pour follows is the pourer's business, not part of the event.
         if (_enableSounds)
-            ::PlaySound(L"SystemNotify", NULL, SND_ALIAS | SND_ASYNC);
+            PlaySteepSound();
 
         if (_tea.IsFinished()) {
             // The last steep ended on its own. The bubble showing its countdown is still up and is what
@@ -698,6 +696,30 @@ bool EyeApp::TeaBlocksEvents() const {
     if (!_tea.IsBrewing() || _tea.IsAwaitingPour() || _tea.IsFinished())
         return false;
     return _tea.MsLeft() <= kTeaEventDeferCapSec * 1000;
+}
+
+void EyeApp::PlaySteepSound() {
+    // Resolved once and remembered, because the answer is a property of the machine rather than of the
+    // moment, and a failed lookup would otherwise be paid on every steep of every session.
+    static bool resolved = false;
+    static bool wanted = false;
+
+    if (!resolved) {
+        resolved = true;
+        if (::PlaySound(kSteepSoundName, NULL, SND_ALIAS | SND_ASYNC) != FALSE) {
+            wanted = true;
+            return; // it played, and that is the whole point
+        }
+        // Not an error the user did anything wrong by: the name is what the sound settings call it here,
+        // and PlaySound resolves a different, shorter list. Say which sound is in use instead, so the
+        // next report about a missing sound can be read without guesswork.
+        // Concatenated rather than formatted: these are wide C strings, and varargs would lean on wxChar
+        // being wchar_t to be correct.
+        logging::msg(wxString(L"steep sound: '") + kSteepSoundName + L"' is not available here, using '" +
+                     kSteepSoundFallback + L"'");
+    }
+
+    ::PlaySound(wanted ? kSteepSoundName : kSteepSoundFallback, NULL, SND_ALIAS | SND_ASYNC);
 }
 
 void EyeApp::ExecuteTask(float, long time_went) {
