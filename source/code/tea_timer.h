@@ -13,16 +13,22 @@
 // doing its job.
 static const long kTeaEventDeferCapSec = 150;
 
-// The sound a finished steep makes, by the name the user picked for it, and the one to fall back on if
-// that name turns out not to be resolvable here. Neither is a file: both are events of the user's own
-// sound scheme, so nothing ships to make noise and the timbre stays theirs to choose.
+// The sound a finished steep makes: a file from the system's own media folder, with the event to fall
+// back on if this machine does not ship it. Nothing is shipped with the app either way.
 //
-// "Windows Unlock" is the name it goes by in the sound settings, but it is not among the aliases
-// PlaySound resolves: the ones it does are enumerated in playsoundapi.h and are all System*, Device*,
-// Message* and the like. So whether this name answers depends on the machine, and PlaySound says so by
-// returning FALSE rather than by failing loudly. See EyeApp::PlaySteepSound.
-static const wchar_t *const kSteepSoundName = L"Windows Unlock";
-static const wchar_t *const kSteepSoundFallback = L"SystemNotify";
+// The file rather than an alias, because "Windows Unlock" is a file and not an event: PlaySound's
+// SND_ALIAS resolves only the names enumerated in playsoundapi.h, all of them System*, Device*, Message*
+// and the like, and answers with FALSE and no error for anything else.
+//
+// More than one name because the system is not consistent about this one, and the difference is a space:
+// some editions ship WindowsUnlock.wav and some "Windows Unlock.wav". Both are tried once and the log
+// says which one it was, rather than the search happening again on every steep of every session. See
+// EyeApp::PlaySteepSound.
+static const wchar_t *const kSteepSoundFiles[] = {
+    L"WindowsUnlock.wav",
+    L"Windows Unlock.wav",
+};
+static const wchar_t *const kSteepSoundAlias = L"SystemNotify";
 
 // One tea's steeping schedule. seconds are in seconds, and there is a hard ceiling of eight per tea
 // because that is the longest shipped schedule (pu-erh); the parser will not read more.

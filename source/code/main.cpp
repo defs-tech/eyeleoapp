@@ -698,28 +698,49 @@ bool EyeApp::TeaBlocksEvents() const {
     return _tea.MsLeft() <= kTeaEventDeferCapSec * 1000;
 }
 
-void EyeApp::PlaySteepSound() {
-    // Resolved once and remembered, because the answer is a property of the machine rather than of the
-    // moment, and a failed lookup would otherwise be paid on every steep of every session.
-    static bool resolved = false;
-    static bool wanted = false;
+// Where the finished-steep sound turned out to live on this machine, and whether we have looked yet.
+// File scope rather than function statics so that the whole of the search state is visible in one place.
+static wxString g_steepSoundPath;
+static bool g_steepSoundResolved = false;
 
-    if (!resolved) {
-        resolved = true;
-        if (::PlaySound(kSteepSoundName, NULL, SND_ALIAS | SND_ASYNC) != FALSE) {
-            wanted = true;
-            return; // it played, and that is the whole point
+void EyeApp::PlaySteepSound() {
+    // Resolved once and kept: whether the system ships the file, and under which of its names, is a
+    // property of the machine rather than of the moment, and looking again on every steep of every
+    // session would buy nothing.
+    if (!g_steepSoundResolved) {
+        g_steepSoundResolved = true;
+
+        wchar_t dir[MAX_PATH] = {0};
+        const UINT n = ::GetWindowsDirectoryW(dir, MAX_PATH);
+        if (n == 0 || n >= MAX_PATH) {
+            logging::msg(L"steep sound: the Windows directory could not be read, using the event instead");
+        } else {
+            const size_t count = sizeof(kSteepSoundFiles) / sizeof(kSteepSoundFiles[0]);
+            for (size_t i = 0; i < count; i++) {
+                const wxString path = wxString::Format(L"%s\\Media\\%s", dir, kSteepSoundFiles[i]);
+                const DWORD attr = ::GetFileAttributesW(path.wc_str());
+                if (attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY)) {
+                    g_steepSoundPath = path;
+                    break;
+                }
+                logging::msg(L"steep sound: nothing at " + path);
+            }
+
+            if (g_steepSoundPath.IsEmpty())
+                logging::msg(wxString(L"steep sound: no unlock sound in ") + dir +
+                             L"\\Media, using the event instead");
+            else
+                logging::msg(L"steep sound: " + g_steepSoundPath);
         }
-        // Not an error the user did anything wrong by: the name is what the sound settings call it here,
-        // and PlaySound resolves a different, shorter list. Say which sound is in use instead, so the
-        // next report about a missing sound can be read without guesswork.
-        // Concatenated rather than formatted: these are wide C strings, and varargs would lean on wxChar
-        // being wchar_t to be correct.
-        logging::msg(wxString(L"steep sound: '") + kSteepSoundName + L"' is not available here, using '" +
-                     kSteepSoundFallback + L"'");
     }
 
-    ::PlaySound(wanted ? kSteepSoundName : kSteepSoundFallback, NULL, SND_ALIAS | SND_ASYNC);
+    if (g_steepSoundPath.IsEmpty())
+        ::PlaySoundW(kSteepSoundAlias, NULL, SND_ALIAS | SND_ASYNC);
+    else
+        // SND_NODEFAULT matters here and nowhere else: without it a file that went missing between the
+        // check above and this call would not be silent but would be whatever Windows plays in its place,
+        // which would sound like a working reminder. The alias branch names an event and is not affected.
+        ::PlaySoundW(g_steepSoundPath.wc_str(), NULL, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
 }
 
 void EyeApp::ExecuteTask(float, long time_went) {
