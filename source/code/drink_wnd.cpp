@@ -17,11 +17,11 @@ END_EVENT_TABLE()
 
 DrinkReminderWindow *DrinkReminderWindow::sInstance = 0;
 
-DrinkReminderWindow::DrinkReminderWindow(int drinkKind, const wxString &caption, long autoDismissMs)
+DrinkReminderWindow::DrinkReminderWindow(const wxString &drinkName, const wxString &caption, long autoDismissMs)
     : wxFrame(NULL, -1, L"", wxDefaultPosition, wxDefaultSize,
               wxFRAME_TOOL_WINDOW | wxFRAME_SHAPED | wxNO_BORDER | wxFRAME_NO_TASKBAR | wxSTAY_ON_TOP)
     , _state(STATE_SHOWING)
-    , _drinkKind(drinkKind)
+    , _drinkName(drinkName)
     , _caption(caption)
     , _autoDismissMs(autoDismissMs)
     , _hideCountdown(false)
@@ -84,12 +84,9 @@ bool DrinkReminderWindow::Init(int displayInd) {
     _timeText->SetBackgroundStyle(wxBG_STYLE_TRANSPARENT);
     _timeText->SetPosition(wxPoint(82, 40));
 
-    // The cup. Loaded here rather than at startup so a session that never triggers a reminder never
-    // pays for eight bitmaps, and freed again when the window goes.
-    LoadDrinkBitmaps();
-    wxBitmap *cup = 0;
-    if (_drinkKind >= DRINK_GREEN && _drinkKind <= NUM_DRINKS)
-        cup = _bmpDrink[_drinkKind];
+    // The cup. Looked up by name and cached, rather than held for the life of the process, so a session
+    // that never triggers a reminder never pays for a vessel it does not show. Freed again below.
+    wxBitmap *cup = DrinkBitmap(_drinkName);
     if (cup) {
         wxStaticBitmap *logo = new wxStaticBitmap(this, wxID_ANY, *cup);
         // Centred in the 71pt tall bubble and to the left of the text column, which starts at x=85.

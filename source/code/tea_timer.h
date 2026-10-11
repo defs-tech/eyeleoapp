@@ -1,7 +1,7 @@
 #ifndef TEA_TIMER_H
 #define TEA_TIMER_H
 
-#include "image_resources.h"
+#include "wx/string.h"
 
 #include <vector>
 
@@ -30,12 +30,19 @@ static const wchar_t *const kSteepSoundFiles[] = {
 };
 static const wchar_t *const kSteepSoundAlias = L"SystemNotify";
 
-// One tea's steeping schedule. seconds are in seconds, and there is a hard ceiling of eight per tea
-// because that is the longest shipped schedule (pu-erh); the parser will not read more.
+// How many steeps one tea may have, and how long a single one may run. Eight is the longest shipped
+// schedule (pu-erh), so it is a ceiling rather than an arbitrary number, and an hour is well clear of
+// any real steep and only catches a stray zero.
+static const int kMaxSteepsPerTea = 8;
+static const int kMaxSteepSeconds = 3600;
+
+// One tea's steeping schedule. The name is the tea's whole identity: it keys the picture file and it is
+// what the menu shows when nothing has translated it. There is no enum of teas and no fixed set, so a
+// tea added to tea.conf exists without a rebuild.
 struct TeaSchedule {
-    EDrinkKind kind;
+    wxString name;
     double temperature; // shown in the caption only, it takes no part in the timing
-    int seconds[8];
+    int seconds[kMaxSteepsPerTea];
     int count;
 };
 
@@ -62,11 +69,21 @@ public:
     // edited. Called when it is missing, which is the first run.
     void SaveDefaultConfig(const wxString &path) const;
 
-    const TeaSchedule *ScheduleFor(EDrinkKind kind) const;
+    // Every schedule, in tea.conf order. The menu is built from this, so the order of the file is the
+    // order of the menu.
+    const std::vector<TeaSchedule> &Schedules() const {
+        return _schedules;
+    }
 
-    // Starts brewing. Fails when there is no schedule, which is the case for water: it is a drink, not
-    // something you steep.
-    bool Start(EDrinkKind kind);
+    const TeaSchedule *ScheduleFor(const wxString &name) const;
+
+    // Which tea a name refers to, or -1. Exact: names are already lowercase by the time they get here,
+    // and folding case would reintroduce the file-name ambiguity the parser exists to prevent.
+    int IndexOfName(const wxString &name) const;
+
+    // Starts brewing. Fails when there is no schedule by that name, which is the case for anything not
+    // in tea.conf: water among them, being a drink rather than something you steep.
+    bool Start(const wxString &name);
 
     // Advances the countdown by elapsedMs. Returns true when the current steep ran out, which is not
     // the same as the tea being finished.
@@ -85,8 +102,8 @@ public:
     bool IsFinished() const {
         return _finished;
     }
-    EDrinkKind Kind() const {
-        return _kind;
+    const wxString &Name() const {
+        return _name;
     }
     int Steep() const {
         return _steep;
@@ -109,18 +126,17 @@ public:
     // Drops the session. The chosen tea is deliberately not remembered across a restart.
     void Stop();
 
-private:
-    static int KindFromName(const wxString &name);
-    void ResetToDefaults();
+    // Parses the text of a tea.conf into _schedules. Separate from LoadConfig so it can be reasoned
+    // about on its own; never leaves _schedules empty, because a file with nothing usable in it falls
+    // back to the built-in schedules.
+    void Parse(const wxString &text);
 
-    // Appends lines to an existing tea.conf. Used only for teas that a later version added, so that
-    // the file the user edits names every tea that is actually in use.
-    static bool AppendToConfigFile(const wxString &path, const wxString &lines);
+    void ResetToDefaults();
 
     std::vector<TeaSchedule> _schedules;
 
     const TeaSchedule *_schedule; // into _schedules, never into a local
-    EDrinkKind _kind;
+    wxString _name;
     int _steep; // zero based
     long _msLeft;
     bool _brewing;

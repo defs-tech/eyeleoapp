@@ -1,5 +1,6 @@
 #pragma once
 #include "wx/bitmap.h"
+#include "wx/string.h"
 
 extern wxBitmap *_backBitmap;
 extern wxBitmap *_backBitmap_long;
@@ -9,30 +10,20 @@ extern wxBitmap *_bmpTitle;
 
 extern wxBitmap *_bmpNotificationLeopard;
 
-// What is being drunk. Water is the hydration reminder and the six teas share the tea timer, so it is
-// one list rather than two features: the reminder shows a cup, and the cup tells you which.
-enum EDrinkKind {
-    DRINK_NONE = 0,
-    DRINK_GREEN,
-    DRINK_WHITE,
-    DRINK_OOLONG,
-    DRINK_BLACK,
-    DRINK_RED,
-    DRINK_PUER,
-    DRINK_HERBAL,
-    DRINK_WATER,
+// The vessel for a drink, looked up by name: the file is tea_<name>.png and the name is the one from
+// tea.conf, so a tea added to that file gets a vessel without anything being recompiled. Water has one
+// the same way, under the name "water", and is not a tea: it has no schedule and no line in that file.
+//
+// Held in a small cache rather than in an array, because the teas are no longer a fixed list.
+//
+// Returns 0 when the file is missing or does not meet the standard below, and says which in the log.
+// The standard: PNG, 8 bits a sample, colour type 6 so there is a real alpha channel, and no larger than
+// 71x44 px, which is the corner of the bubble at the 1x this build runs at. Each of those has a failure
+// that shows up on screen as a black box or a picture drawn over the text.
+wxBitmap *DrinkBitmap(const wxString &name);
 
-    NUM_DRINKS = DRINK_WATER
-};
-
-// The vessel for each kind, indexed by EDrinkKind so the enum and the array cannot drift apart.
-// A null entry means the file is missing and the reminder falls back to the leopard, which is what the
-// hydration bubble showed before cups existed.
-extern wxBitmap *_bmpDrink[NUM_DRINKS + 1];
-
-// Loaded on demand rather than by LoadEyeLeoResources, because eight bitmaps that most sessions never
-// show are not worth holding for the life of the process.
-void LoadDrinkBitmaps();
+// Drops the cached vessels. Called when the reminder closes; they are small but there is no reason to
+// hold them between drinks either.
 void FreeDrinkBitmaps();
 
 void LoadEyeLeoResources();

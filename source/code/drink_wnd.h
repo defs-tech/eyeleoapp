@@ -28,8 +28,10 @@ class DrinkReminderWindow : public wxFrame, public ITask {
     };
 
 public:
-    // showForMs of 0 means the window stays until it is hidden.
-    DrinkReminderWindow(int drinkKind, const wxString &caption, long showForMs);
+    // drinkName picks the vessel: it is the name from tea.conf, and Resources/tea_<name>.png is the
+    // file. Water passes "water", which is a drink with a vessel rather than a tea. showForMs of 0
+    // means the window stays until it is hidden.
+    DrinkReminderWindow(const wxString &drinkName, const wxString &caption, long showForMs);
     virtual ~DrinkReminderWindow();
 
     // False when it refused to come up because another reminder already holds the slot. The caller has
@@ -73,7 +75,7 @@ private:
     static DrinkReminderWindow *sInstance;
 
     EState _state;
-    int _drinkKind;
+    wxString _drinkName;
     wxString _caption;
 
     // Two different clocks, which is the point of the split: _autoDismissMs is how long the bubble

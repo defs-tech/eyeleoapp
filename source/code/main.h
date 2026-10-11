@@ -80,7 +80,7 @@ public:
     void OnSessionUnlock();
 
     // Tea. Starting one runs its first steep immediately; pouring advances to the next one.
-    void StartTea(EDrinkKind kind);
+    void StartTea(const wxString &name);
     void PourNextSteep();
     void TickTea(long elapsedMs);
     bool IsTeaMenuEnabled() const;
@@ -96,7 +96,7 @@ public:
     const TeaTimer &GetTea() const {
         return _tea;
     }
-    static wxString TeaName(EDrinkKind kind);
+    static wxString TeaName(const wxString &name);
 
     void StartBigPause(bool demo = false); // demo is true when 'long pause' is called from Settings window for demo purpose
     void StartMiniPause();

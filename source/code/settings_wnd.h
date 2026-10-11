@@ -42,11 +42,19 @@ enum
     ID_INFORMATION_WRITE_EMAIL,
     ID_INFORMATION_MAKE_DONATION,
 
-    // Base for the six tea items, so a new tea is one more entry and the list can be walked by id.
-    // It has to come last: an explicit value here would renumber everything after it, and the ids
-    // derived from this base would then collide with the settings window's.
+    // Base for the tea items, so a tea is one more entry and the list can be walked by id. It has to come
+    // last: an explicit value here would renumber everything after it, and the ids derived from this base
+    // would then collide with the settings window's.
     ID_TASKBAR_MENU_TEA_BASE = 1000
 };
+
+// How many teas the tray menu can show. The list itself is not capped: tea.conf decides, and a tea beyond
+// this is left out of the menu and said so in the log rather than being silently dropped.
+//
+// A limit is needed because the ids come from a fixed base and the handler is connected once, at
+// construction, for the whole block. Five hundred is far more than anybody types by hand, and the block
+// ends at 1500, well clear of anything wxWidgets and the settings window use.
+static const int kMaxTeasInMenu = 500;
 
 class wxNotebook;
 class SettingsWindow : public wxFrame {

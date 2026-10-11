@@ -517,8 +517,8 @@ ITask *EyeApp::getWindow(const wxString &address) {
     return nullptr;
 }
 
-void EyeApp::StartTea(EDrinkKind kind) {
-    logging::msg(wxString::Format(L"StartTea kind=%d", kind));
+void EyeApp::StartTea(const wxString &name) {
+    logging::msg(wxString::Format(L"StartTea name=%s", name));
 
     // Every one of these used to return in silence, which made a refusal look exactly like a failure
     // somewhere else. The reason belongs in the log, because the symptom is identical every time.
@@ -531,8 +531,8 @@ void EyeApp::StartTea(EDrinkKind kind) {
         return;
     }
 
-    if (!_tea.Start(kind)) {
-        logging::msg(wxString::Format(L"StartTea refused: no schedule for kind %d", kind));
+    if (!_tea.Start(name)) {
+        logging::msg(wxString::Format(L"StartTea refused: %s is not in tea.conf", name));
         return;
     }
 
@@ -615,32 +615,20 @@ wxString EyeApp::TeaSteepCaption() {
     // line wraps is a property of the font metrics of the machine it is drawn on, and a wrapped second
     // line still gets cut off at the bottom of the field. A line break in the string is certain, and the
     // wording ends up the same as what mac's wrapping produces.
-    const TeaSchedule *schedule = _tea.ScheduleFor(_tea.Kind());
+    const TeaSchedule *schedule = _tea.ScheduleFor(_tea.Name());
     double temperature = schedule ? schedule->temperature : 0.0;
     return wxString::Format(langPack->Get("tea_caption_steep"), _tea.Steep() + 1, _tea.SteepCount(), temperature);
 }
 
-wxString EyeApp::TeaName(EDrinkKind kind) {
-    switch (kind) {
-    case DRINK_GREEN:
-        return langPack->Get(L"tea_name_green");
-    case DRINK_WHITE:
-        return langPack->Get(L"tea_name_white");
-    case DRINK_OOLONG:
-        return langPack->Get(L"tea_name_oolong");
-    case DRINK_BLACK:
-        return langPack->Get(L"tea_name_black");
-    case DRINK_RED:
-        return langPack->Get(L"tea_name_red");
-    case DRINK_PUER:
-        return langPack->Get(L"tea_name_puer");
-    case DRINK_HERBAL:
-        return langPack->Get(L"tea_name_herbal");
-    case DRINK_WATER:
-        return langPack->Get(L"tea_name_water");
-    default:
-        return langPack->Get(L"tea_name_generic");
-    }
+// The name a tea is shown under: tea_name_<name> from the langpack, falling back to the name from
+// tea.conf, which is all a tea added without a translation is known by.
+//
+// The fallback is the name rather than the generic "tea", because a tea in the menu under no name of its
+// own reads as a mistake, and the file already names it. LanguagePack::Get hands back an empty string for
+// an id the pack does not have, which is exactly the test for "no translation here".
+wxString EyeApp::TeaName(const wxString &name) {
+    wxString translated = langPack->Get(L"tea_name_" + name);
+    return translated.IsEmpty() ? name : translated;
 }
 
 void EyeApp::ShowTeaReminder(const wxString &caption, long msLeft, long autoDismissMs) {
@@ -662,7 +650,7 @@ void EyeApp::ShowTeaReminder(const wxString &caption, long msLeft, long autoDism
         return;
     }
 
-    DrinkReminderWindow *wnd = new DrinkReminderWindow(_tea.Kind(), caption, 0);
+    DrinkReminderWindow *wnd = new DrinkReminderWindow(_tea.Name(), caption, 0);
     if (!wnd->Init(0)) {
         delete wnd;
         return;
@@ -1564,7 +1552,7 @@ void EyeApp::ShowWaterReminder() {
         if (isFullscreen && fullscreenDisplay == displayInd)
             continue;
 
-        DrinkReminderWindow *wnd = new DrinkReminderWindow(DRINK_WATER, langPack->Get(L"water_reminder_label"),
+        DrinkReminderWindow *wnd = new DrinkReminderWindow(L"water", langPack->Get(L"water_reminder_label"),
                                                           kDrinkReminderSec * 1000);
         if (!wnd->Init(displayInd)) {
             delete wnd;
@@ -1814,7 +1802,10 @@ EyeTaskBarIcon::EyeTaskBarIcon()
     Connect(ID_TASKBAR_MENU_PAUSE_RESUME_MONITORING_2, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(EyeTaskBarIcon::OnPauseResumeMonitoring2));
     Connect(ID_TASKBAR_MENU_TAKE_LONG_BREAK_NOW, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(EyeTaskBarIcon::OnTakeLongBreakNow));
     Connect(ID_TASKBAR_MENU_POUR, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(EyeTaskBarIcon::OnPourNextSteep));
-    for (int i = 1; i <= 7; i++)
+    // The whole tea block at once, because the teas come from tea.conf and their number is not known here.
+    // kMaxTeasInMenu is a limit on what the menu can show, not on what tea.conf may contain; the list is
+    // capped in CreatePopupMenu and says so in the log.
+    for (int i = 1; i <= kMaxTeasInMenu; i++)
         Connect((int)(ID_TASKBAR_MENU_TEA_BASE + i), wxEVT_COMMAND_MENU_SELECTED,
                 wxCommandEventHandler(EyeTaskBarIcon::OnStartTea));
 }
@@ -1904,22 +1895,33 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
         _teaSubMenu = teaMenu;
         item = _menu->AppendSubMenu(teaMenu, langPack->Get("tb_menu_new_tea"));
 
-        static const EDrinkKind kTeas[] = {DRINK_GREEN, DRINK_WHITE, DRINK_OOLONG, DRINK_BLACK,
-                                           DRINK_RED,   DRINK_PUER,  DRINK_HERBAL};
-        for (int i = 0; i < (int)(sizeof(kTeas) / sizeof(kTeas[0])); i++) {
-            EDrinkKind kind = kTeas[i];
+        // The teas are whatever tea.conf lists, in the order it lists them. Reading the list rather than
+        // a fixed one is the whole point of the file: a tea added to it turns up here without a rebuild,
+        // and one taken out of it disappears, which is a choice somebody has been able to make all along.
+        const std::vector<TeaSchedule> &teas = app->GetTea().Schedules();
+        int shown = 0;
+        for (size_t i = 0; i < teas.size(); i++) {
+            if (shown >= kMaxTeasInMenu) {
+                // Only reachable by a tea.conf nobody writes by hand. Say so once rather than quietly
+                // showing a truncated list.
+                logging::msg(wxString::Format(L"tea.conf lists %d teas, %d of them fit in the menu; the "
+                                              L"rest are not shown",
+                                              (int)teas.size(), kMaxTeasInMenu));
+                break;
+            }
+            shown++;
 
             // Just the name. The scheme cannot go here and stay readable, and it cannot go into a
             // tooltip wxWidgets does not have, so PopupMenu below puts it on screen on hover instead.
-            wxMenuItem *teaItem = new wxMenuItem(teaMenu, (int)(ID_TASKBAR_MENU_TEA_BASE + 1 + i),
-                                                 EyeApp::TeaName(kind));
+            wxMenuItem *teaItem = new wxMenuItem(teaMenu, (int)(ID_TASKBAR_MENU_TEA_BASE + 1 + shown),
+                                                 EyeApp::TeaName(teas[i].name));
             // wxITEM_CHECK, and not wxITEM_RADIO, because a radio group cannot express "no tea brewing
             // yet", which is a state this menu has. It is also the only kind that draws a tickmark at
             // all: Check() returns immediately on a plain item, at wxCHECK_RET(IsCheckable()), and
             // Append only passes MF_CHECKED on while IsCheck() holds, so without this the tickmark
             // never appears at all.
             teaItem->SetKind(wxITEM_CHECK);
-            teaItem->Check(app->GetTea().IsBrewing() && app->GetTea().Kind() == kind);
+            teaItem->Check(app->GetTea().IsBrewing() && app->GetTea().Name() == teas[i].name);
             teaMenu->Append(teaItem);
         }
         _menu->AppendSeparator();
@@ -1940,12 +1942,12 @@ bool EyeTaskBarIcon::PopupMenu(wxMenu *menu) {
 
     if (menu && _teaSubMenu) {
         EyeApp *app = getApp();
-        static const EDrinkKind kTeas[] = {DRINK_GREEN, DRINK_WHITE, DRINK_OOLONG, DRINK_BLACK,
-                                           DRINK_RED,   DRINK_PUER,  DRINK_HERBAL};
-        for (int i = 0; i < (int)(sizeof(kTeas) / sizeof(kTeas[0])); i++) {
-            const TeaSchedule *schedule = app->GetTea().ScheduleFor(kTeas[i]);
-            if (!schedule)
-                continue;
+        const std::vector<TeaSchedule> &teas = app->GetTea().Schedules();
+        int count = (int)teas.size();
+        if (count > kMaxTeasInMenu)
+            count = kMaxTeasInMenu;
+        for (int i = 0; i < count; i++) {
+            const TeaSchedule *schedule = &teas[i];
 
             wxString list;
             for (int s = 0; s < schedule->count; s++) {
@@ -1990,15 +1992,19 @@ void EyeTaskBarIcon::OnPourNextSteep(wxCommandEvent &) {
 }
 
 void EyeTaskBarIcon::OnStartTea(wxCommandEvent &event) {
-    // One handler for all seven: the id is the kind's position in the menu's list, and the list order is
-    // fixed, so there is nothing to look up.
-    static const EDrinkKind kTeas[] = {DRINK_GREEN, DRINK_WHITE, DRINK_OOLONG, DRINK_BLACK,
-                                       DRINK_RED,   DRINK_PUER,  DRINK_HERBAL};
+    // One handler for every tea: the id carries the item's position in the menu, and the menu is built in
+    // tea.conf order, so the position is the index into that list. Bounds-checked rather than assumed,
+    // because the list is whatever the file says and a stale menu can still deliver the action.
+    EyeApp *app = getApp();
     int index = event.GetId() - (int)ID_TASKBAR_MENU_TEA_BASE - 1;
-    if (index < 0 || index >= (int)(sizeof(kTeas) / sizeof(kTeas[0])))
+    const std::vector<TeaSchedule> &teas = app->GetTea().Schedules();
+    if (index < 0 || index >= (int)teas.size()) {
+        logging::msg(wxString::Format(L"a tea menu item was clicked with index %d, out of %d", index,
+                                      (int)teas.size()));
         return;
+    }
 
-    getApp()->StartTea(kTeas[index]);
+    app->StartTea(teas[index].name);
 }
 
 void EyeTaskBarIcon::OnQuit(wxCommandEvent &) {
