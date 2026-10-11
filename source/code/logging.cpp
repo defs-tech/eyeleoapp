@@ -40,8 +40,34 @@ wxString GetSavePath() {
     return savePath;
 }
 
+namespace {
+
+// Whether anything is written at all. The same switch the macOS build uses, so the same habit works on
+// both: set EYELEO_DEBUG=1 before launching and the log is written, leave it alone and nothing is.
+//
+// Off by default rather than on, because the log sits in the user's profile for the whole life of the
+// install and is read by nobody unless something has gone wrong. The cost of that choice is that a
+// problem nobody thought to trace leaves no trace, which is why it has to be written down in the README
+// rather than left as a thing this file knows.
+//
+// Read once and cached: the environment cannot change under a running process, and this is reached from
+// every state transition.
+bool TraceOn() {
+    static int cached = -1;
+    if (cached < 0)
+        cached = wxString::FromEnv(L"EYELEO_DEBUG") == L"1" ? 1 : 0;
+    return cached == 1;
+}
+
+} // namespace
+
 namespace logging {
 void Init() {
+    // Nothing to do when the log is off, and in particular no file is created and no old one is deleted:
+    // a run that is not being traced has no business touching the file it is not going to write.
+    if (!TraceOn())
+        return;
+
 #ifdef WIN32
     _wfopen_s(&logFile, GetSavePath() + L"log.txt", L"r");
 #else
@@ -68,6 +94,11 @@ void Init() {
 }
 
 void msg(wxString const &msg) {
+    // Checked before the file is opened rather than after it is written, so a traced-off run costs one
+    // comparison instead of an open, a write and a close on every single state transition.
+    if (!TraceOn())
+        return;
+
 #ifdef WIN32
     _wfopen_s(&logFile, (GetSavePath() + L"log.txt").c_str(), L"a");
 #else
