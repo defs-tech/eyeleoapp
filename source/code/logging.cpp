@@ -1,4 +1,6 @@
 #include "logging.h"
+
+#include <wx/utils.h>
 #include <stdarg.h>
 #include <string.h>
 #include <wx/filefn.h>
@@ -54,8 +56,12 @@ namespace {
 // every state transition.
 bool TraceOn() {
     static int cached = -1;
-    if (cached < 0)
-        cached = wxString::FromEnv(L"EYELEO_DEBUG") == L"1" ? 1 : 0;
+    if (cached < 0) {
+        // wxGetEnv reports whether the variable exists and leaves the value alone when it does not, so
+        // the "not set" case needs no handling of its own: an empty value is not "1" either way.
+        wxString value;
+        cached = wxGetEnv(L"EYELEO_DEBUG", &value) && value == L"1" ? 1 : 0;
+    }
     return cached == 1;
 }
 
