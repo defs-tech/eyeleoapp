@@ -96,7 +96,7 @@ public:
     const TeaTimer &GetTea() const {
         return _tea;
     }
-    static wxString TeaName(const wxString &name);
+    static wxString TeaName(const TeaSchedule &schedule);
 
     void StartBigPause(bool demo = false); // demo is true when 'long pause' is called from Settings window for demo purpose
     void StartMiniPause();

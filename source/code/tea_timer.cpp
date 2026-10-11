@@ -11,13 +11,13 @@
 // oolong and black longer, pu-erh longest of all, and herbal is not tea at all but a dried blend that
 // wants minutes rather than seconds. These are also what SaveDefaultConfig writes out on a first run.
 static const TeaSchedule kDefaultSchedules[] = {
-    {wxT("green"), 80.0, {10, 15, 20, 25, 30, 35, 0, 0}, 6},
-    {wxT("white"), 85.0, {10, 15, 20, 25, 30, 0, 0, 0}, 5},
-    {wxT("oolong"), 85.0, {15, 25, 35, 45, 60, 75, 0, 0}, 6},
-    {wxT("black"), 90.0, {20, 30, 40, 50, 60, 70, 0, 0}, 6},
-    {wxT("red"), 95.0, {7, 10, 15, 20, 25, 30, 0, 0}, 6},
-    {wxT("puer"), 99.0, {20, 30, 40, 50, 60, 70, 80, 90}, 8},
-    {wxT("herbal"), 100.0, {300, 360, 420, 480, 0, 0, 0, 0}, 4},
+    {wxT("green"), wxT("Green tea"), wxT("Зелёный чай"), 80.0, {10, 15, 20, 25, 30, 35, 0, 0}, 6},
+    {wxT("white"), wxT("White tea"), wxT("Белый чай"), 85.0, {10, 15, 20, 25, 30, 0, 0, 0}, 5},
+    {wxT("oolong"), wxT("Oolong"), wxT("Улун"), 85.0, {15, 25, 35, 45, 60, 75, 0, 0}, 6},
+    {wxT("black"), wxT("Black tea"), wxT("Чёрный чай"), 90.0, {20, 30, 40, 50, 60, 70, 0, 0}, 6},
+    {wxT("red"), wxT("Red tea"), wxT("Красный чай"), 95.0, {7, 10, 15, 20, 25, 30, 0, 0}, 6},
+    {wxT("puer"), wxT("Pu-erh"), wxT("Пуэр"), 99.0, {20, 30, 40, 50, 60, 70, 80, 90}, 8},
+    {wxT("herbal"), wxT("Herbal tea"), wxT("Травяной чай"), 100.0, {300, 360, 420, 480, 0, 0, 0, 0}, 4},
 };
 
 static const int kNumDefaultSchedules =
@@ -53,6 +53,12 @@ static wxString ScheduleLine(const TeaSchedule &schedule) {
     wxString line = wxString::Format(wxT("%s, %.0f"), schedule.name, schedule.temperature);
     for (int k = 0; k < schedule.count; k++)
         line += wxString::Format(wxT(", %d"), schedule.seconds[k]);
+    // The names go out with the schedule, so the template the installer ships is the same file format the
+    // parser reads rather than a subset of it.
+    if (!schedule.nameEn.IsEmpty())
+        line += wxString::Format(wxT(", en=\"%s\""), schedule.nameEn);
+    if (!schedule.nameRu.IsEmpty())
+        line += wxString::Format(wxT(", ru=\"%s\""), schedule.nameRu);
     return line;
 }
 
@@ -77,6 +83,53 @@ static bool NameIsValid(const wxString &name) {
             return false;
     }
     return true;
+}
+
+// Splits a line into fields on commas, except for commas inside double quotes. The display names are
+// written as en="..." and a name is allowed to contain a comma, as in en="Milk, with a dash". A single
+// toggle over the quotes is enough: the values are user text, they do not nest, and an unterminated quote
+// leaves the rest of the line as one field, which then fails to parse and is reported like any other
+// mistake.
+static void SplitFields(const wxString &line, wxArrayString *out) {
+    out->Clear();
+    wxString field;
+    bool quoted = false;
+    for (size_t i = 0; i < line.length(); i++) {
+        wchar_t c = line[i];
+        if (c == L'"') {
+            quoted = !quoted;
+            field += c;
+        } else if (c == L',' && !quoted) {
+            out->Add(field.Strip(wxString::both));
+            field.Clear();
+        } else {
+            field += c;
+        }
+    }
+    out->Add(field.Strip(wxString::both));
+}
+
+// Reads one en="..." or ru="..." field.
+//
+// Three answers, not two. A field that is not a name at all is left for the caller to try as a steep
+// time; a name for a language this build has goes in its slot; a name for a language it does not have is
+// recognised and dropped, because a tea written for another language is still a usable tea and refusing
+// the whole line over it would throw away a working schedule.
+enum ENameField { NAME_FIELD_NOT_A_NAME = 0, NAME_FIELD_TAKEN, NAME_FIELD_OTHER_LANGUAGE };
+
+static ENameField ParseNameField(const wxString &text, wxString *en, wxString *ru) {
+    size_t open = text.Find(wxT("=\""));
+    if (open == wxNOT_FOUND || open < 2 || !text.EndsWith(wxT("\"")))
+        return NAME_FIELD_NOT_A_NAME;
+
+    wxString tag = text.Left(open).Lower();
+    if (tag != wxT("en") && tag != wxT("ru"))
+        return NAME_FIELD_OTHER_LANGUAGE;
+
+    // Between the opening and the closing quote: skip the two characters of =", and the quote at the end.
+    wxString value = text.Mid(open + 2, text.length() - open - 3);
+    (tag == wxT("en") ? *en : *ru) = value;
+    return NAME_FIELD_TAKEN;
 }
 
 // A refusal is only visible to whoever turned logging on, which is the point: a rejected line is a
@@ -128,14 +181,9 @@ void TeaTimer::Parse(const wxString &text) {
             continue;
 
         // Split on commas without dropping empty fields: an empty one is a mistake in the line, and
-        // quietly stepping over it would shift every field after it.
+        // quietly stepping over it would shift every field after it. Quoted commas do not split.
         wxArrayString parts;
-        wxString fields = line;
-        for (int pos = fields.Find(','); pos != wxNOT_FOUND; pos = fields.Find(',')) {
-            parts.Add(fields.Left(pos).Strip(wxString::both));
-            fields = fields.Mid(pos + 1);
-        }
-        parts.Add(fields.Strip(wxString::both));
+        SplitFields(line, &parts);
 
         const wxString where = wxString::Format(L"line %d", lineNo);
         const wxString name = parts[0];
@@ -171,13 +219,29 @@ void TeaTimer::Parse(const wxString &text) {
         for (int s = 0; s < kMaxSteepsPerTea; s++)
             schedule.seconds[s] = 0;
 
+        // Anything after the temperature is either a steep time in seconds or a display name written as
+        // en="..." or ru="...". The two are told apart by shape, which is why the name is quoted: a bare
+        // word could only be a mistyped time, and refusing it is more useful than guessing.
         bool malformed = false;
         for (size_t p = 2; p < parts.GetCount() && !malformed; p++) {
+            ENameField kind = ParseNameField(parts[p], &schedule.nameEn, &schedule.nameRu);
+            if (kind == NAME_FIELD_TAKEN)
+                continue;
+            if (kind == NAME_FIELD_OTHER_LANGUAGE) {
+                // A tea written for a language this build does not carry. Not a reason to throw away the
+                // schedule, and the reason it went unnoticed is said out loud under EYELEO_DEBUG.
+                logging::msg(wxString::Format(L"%s: %s: \"%s\" names a language this build does not have, "
+                                              L"the tea is shown under its name",
+                                              where, name, parts[p]));
+                continue;
+            }
+
             long seconds = 0;
             if (parts[p].IsEmpty() || !parts[p].ToLong(&seconds) || seconds <= 0 ||
                 seconds > kMaxSteepSeconds) {
-                Reject(wxString::Format(L"%s: %s: \"%s\" is not a steep time in whole seconds", where, name,
-                                       parts[p]));
+                Reject(wxString::Format(L"%s: %s: \"%s\" is neither a steep time in whole seconds nor a "
+                                       L"name written as en=\"...\" or ru=\"...\"",
+                                       where, name, parts[p]));
                 malformed = true;
             } else if (schedule.count >= kMaxSteepsPerTea) {
                 Reject(wxString::Format(L"%s: %s: more than %d steeps", where, name, kMaxSteepsPerTea));

@@ -620,15 +620,14 @@ wxString EyeApp::TeaSteepCaption() {
     return wxString::Format(langPack->Get("tea_caption_steep"), _tea.Steep() + 1, _tea.SteepCount(), temperature);
 }
 
-// The name a tea is shown under: tea_name_<name> from the langpack, falling back to the name from
-// tea.conf, which is all a tea added without a translation is known by.
+// The name a tea is shown under: what its tea.conf line says, in the language the app is running in, or
+// the name from tea.conf itself when the line names it only in another language or not at all.
 //
-// The fallback is the name rather than the generic "tea", because a tea in the menu under no name of its
-// own reads as a mistake, and the file already names it. LanguagePack::Get hands back an empty string for
-// an id the pack does not have, which is exactly the test for "no translation here".
-wxString EyeApp::TeaName(const wxString &name) {
-    wxString translated = langPack->Get(L"tea_name_" + name);
-    return translated.IsEmpty() ? name : translated;
+// The fallback is the name rather than an empty line, because a tea in the menu under no name of its own
+// reads as a mistake, and the file already names it.
+wxString EyeApp::TeaName(const TeaSchedule &schedule) {
+    const wxString &named = (_lang == L"ru") ? schedule.nameRu : schedule.nameEn;
+    return named.IsEmpty() ? schedule.name : named;
 }
 
 void EyeApp::ShowTeaReminder(const wxString &caption, long msLeft, long autoDismissMs) {
@@ -1914,7 +1913,7 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
             // Just the name. The scheme cannot go here and stay readable, and it cannot go into a
             // tooltip wxWidgets does not have, so PopupMenu below puts it on screen on hover instead.
             wxMenuItem *teaItem = new wxMenuItem(teaMenu, (int)(ID_TASKBAR_MENU_TEA_BASE + 1 + shown),
-                                                 EyeApp::TeaName(teas[i].name));
+                                                 EyeApp::TeaName(teas[i]));
             // wxITEM_CHECK, and not wxITEM_RADIO, because a radio group cannot express "no tea brewing
             // yet", which is a state this menu has. It is also the only kind that draws a tickmark at
             // all: Check() returns immediately on a plain item, at wxCHECK_RET(IsCheckable()), and

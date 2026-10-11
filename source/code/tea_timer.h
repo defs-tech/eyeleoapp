@@ -41,6 +41,10 @@ static const int kMaxSteepSeconds = 3600;
 // tea added to tea.conf exists without a rebuild.
 struct TeaSchedule {
     wxString name;
+    // The display names the line may carry, as en="..." and ru="...". Both optional: a tea with neither is
+    // shown under its name from tea.conf, which is what somebody typing the file sees anyway.
+    wxString nameEn;
+    wxString nameRu;
     double temperature; // shown in the caption only, it takes no part in the timing
     int seconds[kMaxSteepsPerTea];
     int count;
