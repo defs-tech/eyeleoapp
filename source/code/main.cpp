@@ -1913,7 +1913,7 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
             // Just the name. The scheme cannot go here and stay readable, and it cannot go into a
             // tooltip wxWidgets does not have, so PopupMenu below puts it on screen on hover instead.
             wxMenuItem *teaItem = new wxMenuItem(teaMenu, (int)(ID_TASKBAR_MENU_TEA_BASE + 1 + shown),
-                                                 EyeApp::TeaName(teas[i]));
+                                                 app->TeaName(teas[i]));
             // wxITEM_CHECK, and not wxITEM_RADIO, because a radio group cannot express "no tea brewing
             // yet", which is a state this menu has. It is also the only kind that draws a tickmark at
             // all: Check() returns immediately on a plain item, at wxCHECK_RET(IsCheckable()), and

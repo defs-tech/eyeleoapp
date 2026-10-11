@@ -96,7 +96,8 @@ public:
     const TeaTimer &GetTea() const {
         return _tea;
     }
-    static wxString TeaName(const TeaSchedule &schedule);
+    // Not static: it picks the language to answer in, and that lives on the app.
+    wxString TeaName(const TeaSchedule &schedule);
 
     void StartBigPause(bool demo = false); // demo is true when 'long pause' is called from Settings window for demo purpose
     void StartMiniPause();
