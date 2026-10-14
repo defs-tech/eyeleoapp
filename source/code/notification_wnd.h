@@ -15,7 +15,7 @@ class NotificationWindow : public wxFrame, public ITask {
         STATE_DONE
     };
 
-    static bool isInstanceExist; // существует ли хоть инстанс окна
+    static bool isInstanceExist; // СЃСѓС‰РµСЃС‚РІСѓРµС‚ Р»Рё С…РѕС‚СЊ РёРЅСЃС‚Р°РЅСЃ РѕРєРЅР°
 
     EState _state;
 
@@ -34,7 +34,7 @@ public:
     virtual ~NotificationWindow();
 
     void Init(int displayInd = 0);
-    void SetTime(int timeBeforeLongBreakMs); // сколько времени осталось до большого перерыва
+    void SetTime(int timeBeforeLongBreakMs); // СЃРєРѕР»СЊРєРѕ РІСЂРµРјРµРЅРё РѕСЃС‚Р°Р»РѕСЃСЊ РґРѕ Р±РѕР»СЊС€РѕРіРѕ РїРµСЂРµСЂС‹РІР°
 
     virtual bool Hide();
 

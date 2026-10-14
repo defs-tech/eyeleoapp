@@ -7,7 +7,7 @@ endif()
 add_subdirectory("libs/pugixml")
 add_subdirectory("libs/activity-monitor")
 
-project(EyeLeo VERSION 1.5.0)
+project(EyeLeo VERSION 1.5.1)
 
 set(SOURCE_FILES_FOLDER ${CMAKE_CURRENT_SOURCE_DIR}/source/code)
 add_executable(EyeLeo WIN32 ${SOURCE_FILES_FOLDER}/main.cpp)
@@ -21,8 +21,15 @@ if(MSVC)
         -D_UNICODE
         -DUNICODE)
 
-    target_compile_options(EyeLeo PRIVATE /W4)
+    target_compile_options(EyeLeo PRIVATE /W4 /utf-8)
     string(REGEX REPLACE "/W3" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS}) # remove /W3, because we add /W4
+
+    # /utf-8 because the source carries text that has to survive being compiled. The Russian display names
+    # in tea_timer.cpp and the Russian instructions SaveDefaultConfig writes into a generated tea.conf are
+    # literals, and without this MSVC reads the file as the machine's code page: on a build agent set to
+    # 1252 every one of those literals compiles to mojibake and ships broken, while still compiling clean.
+    # Nothing here is a guess about the target machine's language, which is the thing that made the
+    # omission invisible for so long.
 
     # Multithreaded dll CRT
     target_compile_options(EyeLeo PRIVATE $<$<CONFIG:DEBUG>:/MDd>)

@@ -67,11 +67,16 @@ public:
     // user's profile yet, that shipped copy is copied over it, so the file the user edits is the one
     // that was shipped and the shipped values are what a fresh install actually runs on. Without it the
     // file would appear only after the first launch, and the installed copy would never be read at all.
-    void LoadConfig(const wxString &path, const wxString &templatePath = wxEmptyString);
+    //
+    // lang is the language of this install, and it is only used when no template exists and the file has
+    // to be written out from the built-in schedules: the instructions that head that file are written in
+    // it, because a Russian install handing the user an English config file is a file they cannot edit.
+    void LoadConfig(const wxString &path, const wxString &templatePath = wxEmptyString,
+                    const wxString &lang = wxEmptyString);
 
     // Writes the built-in schedules out in the config format, so the file exists to be found and
     // edited. Called when it is missing, which is the first run.
-    void SaveDefaultConfig(const wxString &path) const;
+    void SaveDefaultConfig(const wxString &path, const wxString &lang = wxEmptyString) const;
 
     // Every schedule, in tea.conf order. The menu is built from this, so the order of the file is the
     // order of the menu.

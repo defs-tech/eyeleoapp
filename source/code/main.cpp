@@ -18,6 +18,7 @@
 #include "timeloc.h"
 #include "waiting_wnd.h"
 #include <algorithm>
+#include <cerrno>
 #include <wx/button.h>
 #include <wx/checkbox.h>
 #include <wx/combobox.h>
@@ -216,7 +217,7 @@ bool EyeApp::OnInit() {
     // Read from the executable rather than the working directory, unlike the assets, because this one
     // has to be found even if the app was started by a shortcut with an empty working directory.
     wxFileName exeDir(wxStandardPaths::Get().GetExecutablePath());
-    _tea.LoadConfig(GetSavePath() + L"tea.conf", exeDir.GetPath() + wxT("\\") + wxT("tea.conf"));
+    _tea.LoadConfig(GetSavePath() + L"tea.conf", exeDir.GetPath() + wxT("\\") + wxT("tea.conf"), _lang);
 
     g_Personage = new PersonageData(L"leopard");
 
@@ -259,13 +260,37 @@ wxString EyeApp::GetSavePath() const {
         // CSIDL_APPDATA -> 'C:\Documents and Settings\username\Application Data\'
         // CSIDL_COMMON_DOCUMENTS -> 'C:\Documents and Settings\All Users\Documents\'
         if (SHGetSpecialFolderPathW(NULL, appDataPath, CSIDL_APPDATA, TRUE) == FALSE) {
-            assert(!"SHGetSpecialFolderPath failed");
-            return wxString(L"");
+            // Falling through to an empty path used to be the behaviour, guarded by an assert that a
+            // Release build compiles away. What that cost is worth writing down: every caller appends its
+            // own file name to this, so an empty result did not fail here, it silently relocated the whole
+            // configuration to tea.conf, settings.xml and log.txt relative to whatever directory the
+            // process happened to start in. A user launching from a shortcut then got a profile that
+            // vanished when they moved the shortcut, with no error anywhere.
+            //
+            // The fallback is the folder beside the executable, which is at least somewhere stable and
+            // visible. It is also what a portable install wants, which is the likeliest way to end up
+            // without a roaming profile at all.
+            logging::msg(L"the roaming profile folder is not available, using the install folder instead");
+
+            wxFileName exeDir(wxStandardPaths::Get().GetExecutablePath());
+            wxString dir = exeDir.GetPath();
+            savePath.assign(dir);
+            if (!savePath.IsEmpty()) {
+                if (savePath.Last() != L'\\')
+                    savePath += L"\\";
+                savePath += L"EyeLeo\\";
+            }
+            isInited = true;
+            return savePath;
         }
 
         savePath.assign(appDataPath);
         savePath += L"\\EyeLeo\\";
-        _wmkdir(savePath.c_str());
+        if (_wmkdir(savePath.c_str()) != 0 && errno != EEXIST) {
+            // Created below on failure anyway, and an uncreated directory is not a reason to refuse a
+            // path: every write that needs it says so itself when it fails.
+            logging::msg(wxString::Format(L"could not create %s, error %d", savePath, errno));
+        }
 
         isInited = true;
     }
@@ -1769,6 +1794,21 @@ void EyeApp::OnSessionUnlock() {
 
 ///////////////////////////////////////////////////////////////////////////////////////
 
+// The command id of the tea at position index in the menu, where index is its position in tea.conf.
+//
+// Four places have to agree on this arithmetic and they did not. The constructor connected the block from
+// one count, building an item counted from another, OnStartTea counted back from a third, and the scheme
+// tooltip from a fourth. What that cost: clicking the first tea started the second, the scheme text sat a
+// row above the tea it described, and the last tea was refused outright by the bounds check in the
+// handler. The tick mark went on the right row all the same, because it is matched on the tea's name
+// rather than on its position, which is why it read as a tick one row out from the tea whose timers were
+// actually running.
+//
+// One function for all four is the only thing that keeps them from drifting apart again.
+static int TeaMenuId(int index) {
+    return (int)(ID_TASKBAR_MENU_TEA_BASE + 1 + index);
+}
+
 EyeTaskBarIcon::EyeTaskBarIcon()
     : wxTaskBarIcon()
     , _menu(0)
@@ -1803,9 +1843,10 @@ EyeTaskBarIcon::EyeTaskBarIcon()
     Connect(ID_TASKBAR_MENU_POUR, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(EyeTaskBarIcon::OnPourNextSteep));
     // The whole tea block at once, because the teas come from tea.conf and their number is not known here.
     // kMaxTeasInMenu is a limit on what the menu can show, not on what tea.conf may contain; the list is
-    // capped in CreatePopupMenu and says so in the log.
-    for (int i = 1; i <= kMaxTeasInMenu; i++)
-        Connect((int)(ID_TASKBAR_MENU_TEA_BASE + i), wxEVT_COMMAND_MENU_SELECTED,
+    // capped in CreatePopupMenu and says so in the log. The count runs to the largest index rather than the
+    // largest id, so that TeaMenuId here and in CreatePopupMenu describe the same range.
+    for (int i = 0; i < kMaxTeasInMenu; i++)
+        Connect(TeaMenuId(i), wxEVT_COMMAND_MENU_SELECTED,
                 wxCommandEventHandler(EyeTaskBarIcon::OnStartTea));
 }
 
@@ -1898,9 +1939,8 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
         // a fixed one is the whole point of the file: a tea added to it turns up here without a rebuild,
         // and one taken out of it disappears, which is a choice somebody has been able to make all along.
         const std::vector<TeaSchedule> &teas = app->GetTea().Schedules();
-        int shown = 0;
         for (size_t i = 0; i < teas.size(); i++) {
-            if (shown >= kMaxTeasInMenu) {
+            if ((int)i >= kMaxTeasInMenu) {
                 // Only reachable by a tea.conf nobody writes by hand. Say so once rather than quietly
                 // showing a truncated list.
                 logging::msg(wxString::Format(L"tea.conf lists %d teas, %d of them fit in the menu; the "
@@ -1908,12 +1948,10 @@ wxMenu *EyeTaskBarIcon::CreatePopupMenu() {
                                               (int)teas.size(), kMaxTeasInMenu));
                 break;
             }
-            shown++;
 
             // Just the name. The scheme cannot go here and stay readable, and it cannot go into a
             // tooltip wxWidgets does not have, so PopupMenu below puts it on screen on hover instead.
-            wxMenuItem *teaItem = new wxMenuItem(teaMenu, (int)(ID_TASKBAR_MENU_TEA_BASE + 1 + shown),
-                                                 app->TeaName(teas[i]));
+            wxMenuItem *teaItem = new wxMenuItem(teaMenu, TeaMenuId((int)i), app->TeaName(teas[i]));
             // wxITEM_CHECK, and not wxITEM_RADIO, because a radio group cannot express "no tea brewing
             // yet", which is a state this menu has. It is also the only kind that draws a tickmark at
             // all: Check() returns immediately on a plain item, at wxCHECK_RET(IsCheckable()), and
@@ -1956,7 +1994,7 @@ bool EyeTaskBarIcon::PopupMenu(wxMenu *menu) {
             }
             // No tea name in the text: the tip only appears while the pointer is on that very menu
             // item, which already carries the name. Repeating it there costs width for nothing.
-            tip.SetItemText((int)(ID_TASKBAR_MENU_TEA_BASE + 1 + i),
+            tip.SetItemText(TeaMenuId((int)i),
                             wxString::Format(langPack->Get("tea_scheme_fmt"), schedule->count, list,
                                              schedule->temperature));
         }
@@ -1995,7 +2033,7 @@ void EyeTaskBarIcon::OnStartTea(wxCommandEvent &event) {
     // tea.conf order, so the position is the index into that list. Bounds-checked rather than assumed,
     // because the list is whatever the file says and a stale menu can still deliver the action.
     EyeApp *app = getApp();
-    int index = event.GetId() - (int)ID_TASKBAR_MENU_TEA_BASE - 1;
+    int index = event.GetId() - (int)(ID_TASKBAR_MENU_TEA_BASE + 1);
     const std::vector<TeaSchedule> &teas = app->GetTea().Schedules();
     if (index < 0 || index >= (int)teas.size()) {
         logging::msg(wxString::Format(L"a tea menu item was clicked with index %d, out of %d", index,

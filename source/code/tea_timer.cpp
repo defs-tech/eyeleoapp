@@ -5,6 +5,7 @@
 #include <wx/arrstr.h>
 #include <wx/ffile.h>
 #include <wx/filename.h>
+#include <wx/log.h>
 #include <wx/string.h>
 
 // The shipped schedules, used when tea.conf names no usable tea. Green and white are short and stepped,
@@ -27,7 +28,15 @@ static const TeaSchedule *BuiltInSchedule(int i) { return &kDefaultSchedules[i];
 
 // Both helpers return false rather than throwing: for seeding a config that is a message, not a
 // condition to recover from, and the caller falls back to the built-in schedules.
+//
+// The wxLogNull in each is not decoration. The wxFFile constructor reports a failed open through
+// wxLogSysError, and in a windowed application the default log target turns that into a modal error box.
+// Opening for read here doubles as the existence test, so "the user has no tea.conf yet" is the single
+// most common thing that can happen on a fresh install, and it would arrive at them as an error
+// dialog naming a file they had never heard of. The cases below are all expected outcomes that the
+// caller already handles by falling back, so the log has nothing to add to them.
 static bool ReadTextFile(const wxString &path, wxString *out) {
+    wxLogNull silence;
     wxFFile file(path, "rb");
     if (!file.IsOpened() || !file.ReadAll(out, wxConvUTF8))
         return false;
@@ -39,8 +48,9 @@ static bool CopyTextFile(const wxString &from, const wxString &to) {
     if (!ReadTextFile(from, &text))
         return false;
 
+    wxLogNull silence;
     wxFFile out(to, "wb");
-    if (!out.IsOpened() || !out.Write(text))
+    if (!out.IsOpened() || !out.Write(text, wxConvUTF8))
         return false;
     return true;
 }
@@ -85,6 +95,43 @@ static bool NameIsValid(const wxString &name) {
     return true;
 }
 
+// The spellings a tea.conf could be written with before 1.5.0, and the one name each of them means now.
+// Reading these is a compatibility measure, not a second naming scheme: the picture file and the menu
+// both key on the right-hand column, so a file that says grass or пуэр behaves exactly as if it had said
+// herbal.
+//
+// The reason is what refusing them cost. A line is taken whole or refused whole, so one old spelling threw
+// away the schedule the user had tuned, and the built-in timings took its place with nothing on screen
+// saying so. Silently handing back somebody else's numbers is the one failure a steeping timer must not
+// have.
+static const wchar_t *const kNameAliases[][2] = {
+    {L"зеленый", L"green"},
+    {L"зелёный", L"green"},
+    {L"белый", L"white"},
+    {L"oolon", L"oolong"},
+    {L"улун", L"oolong"},
+    {L"чёрный", L"black"},
+    {L"черный", L"black"},
+    {L"красный", L"red"},
+    {L"красн", L"red"},
+    {L"пуэр", L"puer"},
+    {L"пуер", L"puer"},
+    {L"pu-er", L"puer"},
+    {L"травяной", L"herbal"},
+    {L"grass", L"herbal"},
+};
+
+// Folds an old spelling onto the current name. Anything already in the new shape is its own canonical
+// form, which keeps the common path a single check rather than a walk of the table.
+static wxString CanonicalName(const wxString &name) {
+    if (NameIsValid(name))
+        return name;
+    for (size_t i = 0; i < sizeof(kNameAliases) / sizeof(kNameAliases[0]); i++) {
+        if (name.Cmp(kNameAliases[i][0]) == 0)
+            return kNameAliases[i][1];
+    }
+    return name; // still not usable: the caller refuses the line and says so
+}
 // Splits a line into fields on commas, except for commas inside double quotes. The display names are
 // written as en="..." and a name is allowed to contain a comma, as in en="Milk, with a dash". A single
 // toggle over the quotes is enough: the values are user text, they do not nest, and an unterminated quote
@@ -186,13 +233,20 @@ void TeaTimer::Parse(const wxString &text) {
         SplitFields(line, &parts);
 
         const wxString where = wxString::Format(L"line %d", lineNo);
-        const wxString name = parts[0];
+        const wxString written = parts[0];
+        const wxString name = CanonicalName(written);
 
         if (!NameIsValid(name)) {
             Reject(wxString::Format(L"%s: \"%s\" is not a usable name: one lowercase Latin word, letters, "
                                    L"then digits or underscores",
-                                   where, name));
+                                   where, written));
             continue;
+        }
+        if (name != written) {
+            // Folded, not refused. Said out loud so that a file still carrying the old spelling does not
+            // quietly mean one thing to the menu and another to the picture files.
+            logging::msg(wxString::Format(L"%s: \"%s\" is an old spelling of %s, read as %s", where, written,
+                                          name, name));
         }
         if (seen.Index(name) != wxNOT_FOUND) {
             Reject(wxString::Format(L"%s: %s is already defined above; the first one stands", where, name));
@@ -271,7 +325,7 @@ void TeaTimer::Parse(const wxString &text) {
     _schedules = parsed;
 }
 
-void TeaTimer::LoadConfig(const wxString &path, const wxString &templatePath) {
+void TeaTimer::LoadConfig(const wxString &path, const wxString &templatePath, const wxString &lang) {
     // Back to the shipped schedules first, so a reload after an edit never leaves a half-applied file
     // behind.
     ResetToDefaults();
@@ -285,8 +339,11 @@ void TeaTimer::LoadConfig(const wxString &path, const wxString &templatePath) {
         if (!templatePath.IsEmpty() && CopyTextFile(templatePath, path) && ReadTextFile(path, &text)) {
             logging::msg(L"tea.conf seeded from the copy shipped with the installer");
         } else {
+            // Nothing to seed from, so the file has to be written out here, comments and all. Those
+            // comments are in the language this install runs in, for the same reason the shipped copy is
+            // per-installer: a config file nobody can read is a config file nobody will edit.
             logging::msg(L"tea.conf not present, writing out the built-in schedules");
-            SaveDefaultConfig(path);
+            SaveDefaultConfig(path, lang);
             return;
         }
     }
@@ -294,27 +351,44 @@ void TeaTimer::LoadConfig(const wxString &path, const wxString &templatePath) {
     Parse(text);
 }
 
-void TeaTimer::SaveDefaultConfig(const wxString &path) const {
+// The instructions that head a generated tea.conf, in the language of the install that asked for it. A
+// Russian user reading a Russian program's config file and finding it written in English is being handed
+// a file they have to guess at, and the whole point of shipping the comments is that they do not.
+static wxString DefaultConfigComment(const wxString &lang) {
+    wxString text;
+    if (lang == wxT("ru")) {
+        text += wxT("# Расписание заваривания, по одному чаю в строке:\n");
+        text += wxT("#   имя, температура в градусах, затем секунды для каждого пролива\n");
+        text += wxT("#\n");
+        text += wxT("# Имя это всё, что определяет чай. Оно же имя файла его картинки,\n");
+        text += wxT("# Resources/tea_<имя>.png, поэтому для нового чая нужна своя картинка.\n");
+        text += wxT("# Имя: одно слово латиницей в нижнем регистре, буквы, затем цифры\n");
+        text += wxT("# или подчёркивание, не длиннее 24 символов.\n");
+        text += wxT("# От 1 до 8 проливов на чай, каждый целым числом секунд от 1 до 3600.\n");
+        text += wxT("# Меню идёт в том порядке, в каком файл. Удалили строку — чай исчез.\n");
+        text += wxT("# Изменили строку — перезапустите EyeLeo. Нечитаемое берётся из значений ниже.\n");
+    } else {
+        text += wxT("# Steeping schedules, one tea per line:\n");
+        text += wxT("#   name, temperature in C, then the seconds for each steep\n");
+        text += wxT("#\n");
+        text += wxT("# The name is the tea's whole identity. It is also the name of its picture file,\n");
+        text += wxT("# Resources/tea_<name>.png, so a new tea needs a new picture to look right.\n");
+        text += wxT("# Names are one lowercase Latin word: letters, then digits or underscores, up to 24.\n");
+        text += wxT("# Between 1 and 8 steeps per tea, each a whole number of seconds from 1 to 3600.\n");
+        text += wxT("# The menu follows this file in this order. Delete a line and that tea is gone.\n");
+        text += wxT("# Change a line and restart EyeLeo. Anything unreadable falls back to the values here.\n");
+    }
+    return text;
+}
+
+void TeaTimer::SaveDefaultConfig(const wxString &path, const wxString &lang) const {
     // It lands beside settings.xml, whose directory exists by the time anything can be brewing, but
     // creating it keeps this usable on its own.
     wxFileName fileName(path);
     if (!wxFileName::DirExists(fileName.GetPath()))
         wxFileName::Mkdir(fileName.GetPath(), 0700, wxPATH_MKDIR_FULL);
 
-    // Deliberately ASCII only. Reading is UTF-8, so a comment in Russian typed into this file works, but
-    // a file the app writes itself must not depend on the machine's code page: wx 3.1.3 has no WriteAll
-    // with a conversion, and the plain Write converts through the locale, which on a non-UTF-8 system
-    // would mangle anything above ASCII. Nothing here needs a non-ASCII character.
-    wxString text;
-    text += wxT("# Steeping schedules, one tea per line:\n");
-    text += wxT("#   name, temperature in C, then the seconds for each steep\n");
-    text += wxT("#\n");
-    text += wxT("# The name is the tea's whole identity. It is also the name of its picture file,\n");
-    text += wxT("# Resources/tea_<name>.png, so a new tea needs a new picture to look right.\n");
-    text += wxT("# Names are one lowercase Latin word: letters, then digits or underscores, up to 24.\n");
-    text += wxT("# Between 1 and 8 steeps per tea, each a whole number of seconds from 1 to 3600.\n");
-    text += wxT("# The menu follows this file in this order. Delete a line and that tea is gone.\n");
-    text += wxT("# Change a line and restart EyeLeo. Anything unreadable falls back to the values here.\n");
+    wxString text = DefaultConfigComment(lang);
 
     for (size_t i = 0; i < _schedules.size(); i++) {
         wxString line = ScheduleLine(_schedules[i]);
@@ -322,8 +396,13 @@ void TeaTimer::SaveDefaultConfig(const wxString &path) const {
             text += line + wxT("\n");
     }
 
+    // UTF-8 named outright rather than left to the plain Write, which converts through the machine's
+    // code page. The Russian comments and the ru="..." display names above ASCII are exactly the text
+    // that conversion would mangle on anything that is not a UTF-8 system, and the parser on the way back
+    // reads UTF-8, so a file written any other way would not survive its own round trip.
+    wxLogNull silence;
     wxFFile out(path, "wb");
-    if (!out.IsOpened() || !out.Write(text))
+    if (!out.IsOpened() || !out.Write(text, wxConvUTF8))
         logging::msg(L"tea.conf could not be written; the built-in schedules stay in use");
 }
 

@@ -2,8 +2,8 @@
 
 namespace eyeleo {
 namespace settings {
-extern int timeForLongBreakCountdown;    // за сколько секунд начинать отсчёт до длинного перерыва
-extern int timeForLongBreakConfirmation; // за сколько секунд показывать окно с вопросом "готов к большому перерыву?"
+extern int timeForLongBreakCountdown;    // Р·Р° СЃРєРѕР»СЊРєРѕ СЃРµРєСѓРЅРґ РЅР°С‡РёРЅР°С‚СЊ РѕС‚СЃС‡С‘С‚ РґРѕ РґР»РёРЅРЅРѕРіРѕ РїРµСЂРµСЂС‹РІР°
+extern int timeForLongBreakConfirmation; // Р·Р° СЃРєРѕР»СЊРєРѕ СЃРµРєСѓРЅРґ РїРѕРєР°Р·С‹РІР°С‚СЊ РѕРєРЅРѕ СЃ РІРѕРїСЂРѕСЃРѕРј "РіРѕС‚РѕРІ Рє Р±РѕР»СЊС€РѕРјСѓ РїРµСЂРµСЂС‹РІСѓ?"
 
 extern int disableActivityDuration;
 extern int disableActivity2Duration;

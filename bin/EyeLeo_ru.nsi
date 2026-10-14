@@ -2,7 +2,7 @@
 ShowInstDetails show
 
 !define APPNAME "EyeLeo"
-!define VERSION "1.5.0"
+!define VERSION "1.5.1"
 
 ; The name of the installer
 Name "${APPNAME} Installer"
@@ -124,7 +124,7 @@ Section "Install EyeLeo (required)"
   File "msvcp120.dll"
   File "msvcr120.dll"
   File "EyeLeo.exe"
-  File "tea.conf"
+  File "/oname=tea.conf" "tea.ru.conf"
   File "readme.txt"
   File "license.txt"
   File "/oname=config.xml" "config.ru.xml"

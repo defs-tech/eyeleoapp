@@ -2,6 +2,7 @@
 #include "logging.h"
 
 #include <wx/ffile.h>
+#include <wx/log.h>
 
 #include <cstring>
 #include <map>
@@ -29,6 +30,10 @@ struct PngHeader {
 const unsigned char kPngSignature[8] = {0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
 
 bool ReadPngHeader(const wxString &path, PngHeader *out) {
+    // A picture that is not there is a question with a known answer, and the caller answers it by carrying
+    // on without the picture. Left unsaid, wxWidgets would raise it as a modal error instead, because
+    // wxFFile reports a failed open through wxLogSysError and this is a windowed application.
+    wxLogNull silence;
     wxFFile file(path, "rb");
     if (!file.IsOpened())
         return false;
@@ -84,7 +89,11 @@ wxBitmap *DrinkBitmap(const wxString &name) {
         return 0;
     }
 
-    // Relative to the working directory, like every other asset here.
+    // Relative to the working directory, like every other asset here. The header has already been read, so
+    // the file is there and what could still go wrong is the contents; the same silence as above, because
+    // a vessel the user put in the folder wrong is their picture to sort out, not an error to interrupt
+    // them over.
+    wxLogNull silence;
     wxBitmap *bitmap = new wxBitmap(file, wxBITMAP_TYPE_PNG);
     if (!bitmap->IsOk()) {
         logging::msg(wxString::Format(L"vessel %s did not decode", file));
